@@ -1,0 +1,41 @@
+extends "res://scenes/enemies/melee_enemy.gd"
+
+signal flame_cast(origin: Vector2, direction: Vector2, damage: int)
+signal wolves_summoned(origin: Vector2)
+
+const FLAME_INTERVAL := 6.0
+const SUMMON_INTERVAL := 15.0
+const FLAME_COUNT := 5
+const FLAME_STEP := PI / 12.0
+const FLAME_DAMAGE := 15
+
+var _flame_left := FLAME_INTERVAL
+var _summon_left := SUMMON_INTERVAL
+
+
+func _reset_behavior() -> void:
+	super._reset_behavior()
+	_flame_left = FLAME_INTERVAL
+	_summon_left = SUMMON_INTERVAL
+
+
+func _update_attack(delta: float) -> void:
+	super._update_attack(delta)
+	if not _target.is_alive():
+		return
+	_flame_left -= delta
+	if _flame_left <= 0.000001:
+		_flame_left += FLAME_INTERVAL
+		_cast_flames()
+	_summon_left -= delta
+	if _summon_left <= 0.000001:
+		_summon_left += SUMMON_INTERVAL
+		wolves_summoned.emit(global_position)
+
+
+func _cast_flames() -> void:
+	# 以玩家方向为扇形中轴，五颗法球均匀展开。
+	var angle := global_position.direction_to(_target.global_position).angle()
+	for i in range(FLAME_COUNT):
+		var direction := Vector2.from_angle(angle + (float(i) - 2.0) * FLAME_STEP)
+		flame_cast.emit(global_position, direction, FLAME_DAMAGE)

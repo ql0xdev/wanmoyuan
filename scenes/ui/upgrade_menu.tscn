@@ -1,0 +1,101 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scenes/ui/upgrade_menu.gd" id="1_menu"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card"]
+bg_color = Color(0.12, 0.20, 0.21, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.34, 0.64, 0.56, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_left = 12
+corner_radius_bottom_right = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hover"]
+bg_color = Color(0.21, 0.34, 0.33, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.60, 0.87, 0.72, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_left = 12
+corner_radius_bottom_right = 12
+
+[sub_resource type="Theme" id="Theme_cards"]
+Button/font_sizes/font_size = 23
+Button/styles/normal = SubResource("StyleBoxFlat_card")
+Button/styles/hover = SubResource("StyleBoxFlat_hover")
+Button/styles/pressed = SubResource("StyleBoxFlat_hover")
+
+[node name="UpgradeMenu" type="Control"]
+process_mode = 2
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_menu")
+
+[node name="Shade" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+color = Color(0.03, 0.06, 0.07, 0.85)
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+
+[node name="Content" type="VBoxContainer" parent="Center"]
+custom_minimum_size = Vector2(672, 0)
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 18
+
+[node name="Title" type="Label" parent="Center/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.88, 0.52, 1)
+theme_override_font_sizes/font_size = 42
+text = "修为提升"
+horizontal_alignment = 1
+
+[node name="Cards" type="HBoxContainer" parent="Center/Content"]
+layout_mode = 2
+mouse_filter = 2
+theme = SubResource("Theme_cards")
+theme_override_constants/separation = 12
+alignment = 1
+
+[node name="Card1" type="Button" parent="Center/Content/Cards"]
+custom_minimum_size = Vector2(216, 218)
+layout_mode = 2
+focus_mode = 0
+
+[node name="Card2" type="Button" parent="Center/Content/Cards"]
+custom_minimum_size = Vector2(216, 218)
+layout_mode = 2
+focus_mode = 0
+
+[node name="Card3" type="Button" parent="Center/Content/Cards"]
+custom_minimum_size = Vector2(216, 218)
+layout_mode = 2
+focus_mode = 0
+
+[node name="Hint" type="Label" parent="Center/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.67, 0.80, 0.78, 1)
+theme_override_font_sizes/font_size = 22
+text = "点按卡牌，或按对应数字键"
+horizontal_alignment = 1

@@ -1,0 +1,22 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scenes/enemies/crow_demon.gd" id="1_crow"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_crow"]
+radius = 16.0
+
+[node name="CrowDemon" type="CharacterBody2D"]
+collision_layer = 0
+collision_mask = 0
+motion_mode = 1
+script = ExtResource("1_crow")
+max_health = 12
+move_speed = 90.0
+damage = 8
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_crow")
+
+[node name="Body" type="Polygon2D" parent="."]
+color = Color(0.73, 0.53, 0.89, 1)
+polygon = PackedVector2Array(0, -16, 7, -8, 23, -11, 14, 4, 6, 5, 0, 16, -6, 5, -14, 4, -23, -11, -7, -8)

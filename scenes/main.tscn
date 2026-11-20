@@ -1,0 +1,47 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://scenes/main.gd" id="1_main"]
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
+[ext_resource type="PackedScene" path="res://scenes/ui/virtual_joystick.tscn" id="3_joystick"]
+[ext_resource type="PackedScene" path="res://scenes/skills/skill_controller.tscn" id="4_skills"]
+[ext_resource type="PackedScene" path="res://scenes/ui/battle_hud.tscn" id="5_hud"]
+[ext_resource type="PackedScene" path="res://scenes/ui/upgrade_menu.tscn" id="6_upgrade"]
+[ext_resource type="PackedScene" path="res://scenes/ui/result_menu.tscn" id="7_result"]
+[ext_resource type="Script" path="res://scenes/ui/safe_area.gd" id="8_safe"]
+
+[node name="Main" type="Node2D"]
+script = ExtResource("1_main")
+
+[node name="Player" parent="." instance=ExtResource("2_player")]
+
+[node name="Enemies" type="Node2D" parent="."]
+
+[node name="SkillController" parent="." instance=ExtResource("4_skills")]
+
+[node name="Projectiles" type="Node2D" parent="."]
+
+[node name="Pickups" type="Node2D" parent="."]
+
+[node name="TouchUI" type="CanvasLayer" parent="."]
+
+[node name="SafeArea" type="Control" parent="TouchUI"]
+process_mode = 3
+clip_contents = true
+mouse_filter = 2
+script = ExtResource("8_safe")
+
+[node name="BattleHUD" parent="TouchUI/SafeArea" instance=ExtResource("5_hud")]
+process_mode = 1
+
+[node name="VirtualJoystick" parent="TouchUI/SafeArea" instance=ExtResource("3_joystick")]
+process_mode = 1
+
+[node name="UpgradeMenu" parent="TouchUI/SafeArea" instance=ExtResource("6_upgrade")]
+
+[node name="ResultMenu" parent="TouchUI/SafeArea" instance=ExtResource("7_result")]
+
+[connection signal="died" from="Player" to="." method="_on_player_died"]
+[connection signal="health_changed" from="Player" to="TouchUI/SafeArea/BattleHUD" method="set_health"]
+[connection signal="direction_changed" from="TouchUI/SafeArea/VirtualJoystick" to="Player" method="_on_joystick_direction_changed"]
+[connection signal="choice_selected" from="TouchUI/SafeArea/UpgradeMenu" to="." method="_on_upgrade_chosen"]
+[connection signal="restart_requested" from="TouchUI/SafeArea/ResultMenu" to="." method="_restart_battle"]

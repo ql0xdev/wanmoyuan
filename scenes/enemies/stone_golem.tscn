@@ -1,0 +1,24 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scenes/enemies/melee_enemy.gd" id="1_melee"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_golem"]
+radius = 32.0
+
+[node name="StoneGolem" type="CharacterBody2D"]
+collision_layer = 0
+collision_mask = 0
+motion_mode = 1
+script = ExtResource("1_melee")
+max_health = 120
+move_speed = 60.0
+damage = 20
+body_radius = 32.0
+crystal_count = 5
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_golem")
+
+[node name="Body" type="Polygon2D" parent="."]
+color = Color(0.72, 0.61, 0.43, 1)
+polygon = PackedVector2Array(-20, -32, 20, -32, 29, -22, 32, 15, 16, 32, -16, 32, -32, 15, -29, -22)

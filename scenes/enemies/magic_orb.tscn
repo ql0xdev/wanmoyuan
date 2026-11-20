@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scenes/enemies/magic_orb.gd" id="1_orb"]
+
+[node name="MagicOrb" type="Node2D"]
+script = ExtResource("1_orb")
+
+[node name="Orb" type="Polygon2D" parent="."]
+color = Color(0.92, 0.53, 0.93, 1)
+polygon = PackedVector2Array(0, -9, 6, -6, 9, 0, 6, 6, 0, 9, -6, 6, -9, 0, -6, -6)
