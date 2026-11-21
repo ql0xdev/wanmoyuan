@@ -5,13 +5,17 @@ const Catalog = preload("res://scripts/cultivation_catalog.gd")
 const StatsManager = preload("res://scripts/stats_manager.gd")
 const GearMenu = preload("res://scenes/ui/equipment_menu.gd")
 const GameMenu = preload("res://scenes/ui/game_menu.gd")
+const Look = preload("res://scenes/ui/ui_look.gd")
+const STAT_LABELS := ["气血上限", "攻击倍率", "移速", "拾取范围", "冷却缩减", "受伤减免", "灵石掉落倍率", "击杀回血"]
 
 @onready var _title: Label = $SafeArea/Margin/Content/Header/Title
 @onready var _tabs: TabContainer = $SafeArea/Margin/Content/Tabs
 @onready var _realm: Label = $SafeArea/Margin/Content/Tabs/修行/Scroll/Details/Realm
-@onready var _stats: Label = $SafeArea/Margin/Content/Tabs/修行/Scroll/Details/Stats
+@onready var _stats: GridContainer = $SafeArea/Margin/Content/Tabs/修行/Scroll/Details/Stats
 @onready var _progress: Label = $SafeArea/Margin/Content/Tabs/修行/Scroll/Details/Progress
 @onready var _breakthrough: Button = $SafeArea/Margin/Content/Tabs/修行/Scroll/Details/Breakthrough
+@onready var _breakthrough_bar: ProgressBar = $SafeArea/Margin/Content/Tabs/修行/Scroll/Details/BreakthroughBar
+@onready var _breakthrough_progress: Label = $SafeArea/Margin/Content/Tabs/修行/Scroll/Details/BreakthroughProgress
 @onready var _skill_tree: VBoxContainer = $SafeArea/Margin/Content/Tabs/功法/Tree
 @onready var _storage: GearMenu = $SafeArea/Margin/Content/Tabs/行囊
 @onready var _stones: Label = $SafeArea/Margin/Content/Stones
@@ -24,10 +28,14 @@ const GameMenu = preload("res://scenes/ui/game_menu.gd")
 @onready var _flash: ColorRect = $BreakthroughFlash
 @onready var _notice: Label = $BreakthroughNotice
 @onready var _game_menu: GameMenu = $SafeArea/GameMenu
+@onready var _cave_layout: Control = $SafeArea/Margin
 
 var _points: Label
 var _skill_nodes := {}
 var _passive_nodes := {}
+var _stat_values: Array[Label] = []
+var _learned_card := Look.box(Look.BACKGROUND, Look.GOLD)
+var _locked_card := Look.box(Look.BACKGROUND, Look.BORDER)
 var _abyss_buttons := {}
 var _loadout_buttons := {}
 var _skill_options: VBoxContainer
@@ -40,8 +48,10 @@ func _ready() -> void:
 	_storage.wear_requested.connect(_wear_equipment)
 	_storage.salvage_requested.connect(_salvage_equipment)
 	_game_menu.closed.connect(_resume_cave)
+	_build_stat_tiles()
 	_build_skill_tree()
 	_build_preparation()
+	Look.skin_buttons(self)
 	_refresh()
 
 
@@ -64,12 +74,16 @@ func _refresh() -> void:
 	var stats := StatsManager.new()
 	var worn := SaveManager.equipped_items()
 	stats.configure(SaveManager.realm(), SaveManager.passive_levels(), worn)
-	_realm.text = "当前境界 · %s" % SaveManager.realm_name()
-	_stats.text = "气血上限 %d　攻击倍率 ×%.2f\n移速 %d　拾取范围 %d\n冷却缩减 %d%%　受伤减免 %d%%\n灵石掉落倍率 ×%.2f　击杀回血 %d" % [
-		stats.max_health(), stats.attack_multiplier(), roundi(stats.move_speed()), roundi(stats.magnet_radius),
-		roundi((1.0 - stats.cooldown_multiplier) * 100.0), roundi((1.0 - stats.damage_taken_multiplier()) * 100.0),
-		stats.stone_multiplier(), stats.kill_heal(),
+	_realm.text = SaveManager.realm_name()
+	var values := [
+		str(stats.max_health()), "×%.2f" % stats.attack_multiplier(),
+		str(roundi(stats.move_speed())), str(roundi(stats.magnet_radius)),
+		"%d%%" % roundi((1.0 - stats.cooldown_multiplier) * 100.0),
+		"%d%%" % roundi((1.0 - stats.damage_taken_multiplier()) * 100.0),
+		"×%.2f" % stats.stone_multiplier(), str(stats.kill_heal()),
 	]
+	for i in range(values.size()):
+		_stat_values[i].text = values[i]
 	var progress := PackedStringArray()
 	for abyss: String in Catalog.ABYSSES:
 		var descriptor := "未通关"
@@ -84,8 +98,37 @@ func _refresh() -> void:
 	var target: String = Catalog.REALMS[SaveManager.realm()].next
 	_breakthrough.disabled = target.is_empty() or SaveManager.spirit_stones() < Catalog.REALMS[target].cost
 	_breakthrough.text = "已达金丹" if target.is_empty() else "突破·%s（%d 灵石）" % [Catalog.REALMS[target].name, Catalog.REALMS[target].cost]
+	_breakthrough_bar.visible = not target.is_empty()
+	_breakthrough_progress.visible = not target.is_empty()
+	if not target.is_empty():
+		var cost: int = Catalog.REALMS[target].cost
+		_breakthrough_bar.max_value = float(cost)
+		_breakthrough_bar.value = float(SaveManager.spirit_stones())
+		_breakthrough_progress.text = "%d / %d 灵石" % [SaveManager.spirit_stones(), cost]
 	_refresh_skill_tree()
 	_storage.display(GearMenu.Mode.STORAGE, SaveManager.storage(), worn)
+
+
+func _build_stat_tiles() -> void:
+	_style_progress(_breakthrough_bar, Look.GOLD)
+	for title: String in STAT_LABELS:
+		var panel := PanelContainer.new()
+		panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		panel.add_theme_stylebox_override("panel", _locked_card)
+		_stats.add_child(panel)
+		var row := HBoxContainer.new()
+		panel.add_child(row)
+		var caption := _add_label(row, title, 20)
+		caption.modulate = Look.MUTED
+		caption.autowrap_mode = TextServer.AUTOWRAP_OFF
+		caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		caption.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var value := _add_label(row, "", 24)
+		value.modulate = Look.CYAN
+		value.autowrap_mode = TextServer.AUTOWRAP_OFF
+		value.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		_stat_values.append(value)
 
 
 func _break_through() -> void:
@@ -103,8 +146,17 @@ func _break_through() -> void:
 	_notice.show()
 	_flash_tween = create_tween().set_parallel()
 	_flash_tween.tween_property(_flash, "modulate:a", 0.0, 0.55)
-	_flash_tween.tween_property(_notice, "modulate:a", 0.0, 0.35).set_delay(0.9)
+	_flash_tween.tween_method(_shake_breakthrough, 0.0, 1.0, 0.30)
+	_flash_tween.tween_property(_notice, "modulate:a", 0.0, 0.35).set_delay(1.50)
 	_flash_tween.chain().tween_callback(_hide_flash)
+
+
+func _shake_breakthrough(progress: float) -> void:
+	var offset := Look.shake_offset(progress, 8.0)
+	_cave_layout.offset_left = offset.x
+	_cave_layout.offset_right = offset.x
+	_cave_layout.offset_top = offset.y
+	_cave_layout.offset_bottom = offset.y
 
 
 func _hide_flash() -> void:
@@ -113,30 +165,77 @@ func _hide_flash() -> void:
 
 
 func _build_skill_tree() -> void:
-	_points = _add_label(_skill_tree, "", 27)
-	_points.modulate = Color("#ffda91")
-	_add_label(_skill_tree, "├ 主动功法\n　初始：御剑术、雷诀、护体罡气、冰心咒、回春功", 23)
+	_points = _add_label(_skill_tree, "", 24)
+	_points.modulate = Look.CYAN
+	_add_label(_skill_tree, "主动功法", 32).modulate = Look.GOLD
+	var icon_active := Look.swatch(Color("#356a65"), Vector2i(32, 32))
+	var icon_passive := Look.swatch(Color("#625079"), Vector2i(32, 32))
+	var starters := GridContainer.new()
+	starters.columns = 2
+	starters.add_theme_constant_override("h_separation", 8)
+	starters.add_theme_constant_override("v_separation", 8)
+	_skill_tree.add_child(starters)
 	for skill: String in Catalog.SKILLS:
 		var node: Dictionary = Catalog.SKILL_DATA[skill]
 		if node.cost == 0:
+			_add_tree_card(starters, node.name, "初始 · 已领悟", icon_active, _learned_card)
 			continue
-		_skill_nodes[skill] = _add_tree_row(node.name, node.detail, _learn.bind(skill))
-	_add_label(_skill_tree, "└ 心法 · 永久生效", 23)
+	for skill: String in Catalog.SKILLS:
+		var node: Dictionary = Catalog.SKILL_DATA[skill]
+		if node.cost > 0:
+			var card := _add_tree_card(_skill_tree, node.name, "%s · %d 点" % [node.detail, node.cost], icon_active, _locked_card)
+			_add_tree_action(card, _learn.bind(skill))
+			_skill_nodes[skill] = card
+	_add_label(_skill_tree, "心法 · 永久生效", 32).modulate = Look.GOLD
 	for id: String in Catalog.PASSIVES:
 		var node: Dictionary = Catalog.PASSIVES[id]
-		_passive_nodes[id] = _add_tree_row(node.name, node.detail, _train.bind(id))
+		var card := _add_tree_card(_skill_tree, node.name, node.detail, icon_passive, _locked_card)
+		var meter := ProgressBar.new()
+		meter.max_value = node.max
+		meter.show_percentage = false
+		meter.custom_minimum_size.y = 12
+		_style_progress(meter, Look.CYAN)
+		card.details.add_child(meter)
+		var rank := _add_label(card.details, "", 20)
+		rank.modulate = Look.CYAN
+		card["rank"] = rank
+		card["meter"] = meter
+		_add_tree_action(card, _train.bind(id))
+		_passive_nodes[id] = card
 
 
-func _add_tree_row(title: String, detail: String, action: Callable) -> Dictionary:
+func _add_tree_card(parent: Control, title: String, detail: String, icon: Texture2D, style: StyleBoxFlat) -> Dictionary:
+	var panel := PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.add_theme_stylebox_override("panel", style)
+	parent.add_child(panel)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
-	_skill_tree.add_child(row)
-	var label := _add_label(row, "│ %s\n   %s" % [title, detail], 22)
-	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var button := _add_button(row, 48)
-	button.custom_minimum_size.x = 168
+	panel.add_child(row)
+	var glyph := TextureRect.new()
+	glyph.texture = icon
+	glyph.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(glyph)
+	var details := VBoxContainer.new()
+	details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(details)
+	_add_label(details, title, 24)
+	_add_label(details, detail, 20).modulate = Look.MUTED
+	return {"panel": panel, "row": row, "details": details}
+
+
+func _add_tree_action(card: Dictionary, action: Callable) -> void:
+	var button := _add_button(card.row, 52)
+	button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	button.custom_minimum_size.x = 148
 	button.pressed.connect(action)
-	return {"label": label, "button": button}
+	card["button"] = button
+
+
+func _style_progress(bar: ProgressBar, ink: Color) -> void:
+	bar.add_theme_stylebox_override("background", Look.box(Look.DISABLED, Color.TRANSPARENT, 0, 6, 0))
+	bar.add_theme_stylebox_override("fill", Look.box(ink, Color.TRANSPARENT, 0, 6, 0))
 
 
 func _refresh_skill_tree() -> void:
@@ -145,15 +244,18 @@ func _refresh_skill_tree() -> void:
 	var passives := SaveManager.passive_levels()
 	_points.text = "功法点  %d" % points
 	for id: String in _skill_nodes:
-		var button: Button = _skill_nodes[id].button
+		var ui: Dictionary = _skill_nodes[id]
+		var button: Button = ui.button
 		var cost: int = Catalog.SKILL_DATA[id].cost
 		button.text = "已领悟" if learned.has(id) else "领悟 · %d 点" % cost
 		button.disabled = learned.has(id) or points < cost
+		ui.panel.add_theme_stylebox_override("panel", _learned_card if learned.has(id) else _locked_card)
 	for id: String in _passive_nodes:
 		var ui: Dictionary = _passive_nodes[id]
 		var node: Dictionary = Catalog.PASSIVES[id]
 		var level: int = passives.get(id, 0)
-		ui.label.text = "│ %s  %d/%d\n   %s" % [node.name, level, node.max, node.detail]
+		ui.meter.value = level
+		ui.rank.text = "%d/%d" % [level, node.max]
 		ui.button.disabled = points < 1 or level >= node.max
 		ui.button.text = "已满级" if level >= node.max else "加点 · 1 点"
 
@@ -303,4 +405,5 @@ func _add_button(parent: Control, height: float) -> Button:
 	button.custom_minimum_size.y = height
 	button.add_theme_font_size_override("font_size", 24)
 	parent.add_child(button)
+	Look.skin_button(button)
 	return button

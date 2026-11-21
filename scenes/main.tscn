@@ -27,11 +27,16 @@ script = ExtResource("1_main")
 
 [node name="Camera" type="Camera3D" parent="."]
 rotation = Vector3(-0.7853982, 0, 0)
-current = true
 fov = 50.0
 near = 5.0
 far = 4900.0
 script = ExtResource("13_camera")
+
+[node name="Presentation" type="Camera3D" parent="Camera"]
+current = true
+fov = 50.0
+near = 5.0
+far = 4900.0
 
 [node name="Player" parent="." instance=ExtResource("2_player")]
 
@@ -45,6 +50,9 @@ script = ExtResource("13_camera")
 
 [node name="DeathBursts" type="MultiMeshInstance3D" parent="."]
 material_override = SubResource("StandardMaterial3D_bursts")
+cast_shadow = 0
+
+[node name="LootBeams" type="MultiMeshInstance3D" parent="."]
 cast_shadow = 0
 
 [node name="EffectsLayer" type="CanvasLayer" parent="."]

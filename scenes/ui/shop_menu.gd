@@ -2,6 +2,7 @@ extends Control
 
 const Pills = preload("res://scripts/pill_catalog.gd")
 const Stats = preload("res://scripts/stats_manager.gd")
+const Look = preload("res://scenes/ui/ui_look.gd")
 
 signal close_requested
 signal purchase_requested(id: String)
@@ -14,20 +15,35 @@ var _buttons := {}
 
 
 func _ready() -> void:
+	Look.animate_panel(self, $Panel)
+	var tile := Look.box(Look.BACKGROUND, Look.BORDER)
 	for id: String in Pills.ITEMS:
 		var pill: Dictionary = Pills.ITEMS[id]
+		var panel := PanelContainer.new()
+		panel.add_theme_stylebox_override("panel", tile)
+		_products.add_child(panel)
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 12)
-		row.custom_minimum_size.y = 86
-		_products.add_child(row)
-		var details := Label.new()
+		panel.add_child(row)
+		var details := VBoxContainer.new()
 		details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		details.add_theme_font_size_override("font_size", 23)
-		details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		details.text = "%s · %d 灵石\n%s" % [pill.name, pill.cost, pill.detail]
 		row.add_child(details)
+		var title := Label.new()
+		title.text = pill.name
+		title.add_theme_font_size_override("font_size", 26)
+		details.add_child(title)
+		var cost := Label.new()
+		cost.text = "%d 灵石" % pill.cost
+		cost.modulate = Look.CYAN
+		details.add_child(cost)
+		var description := Label.new()
+		description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		description.text = pill.detail
+		description.modulate = Look.MUTED
+		details.add_child(description)
 		var button := Button.new()
-		button.custom_minimum_size.x = 120
+		button.custom_minimum_size = Vector2(158, 54)
+		button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		button.add_theme_font_size_override("font_size", 24)
 		button.pressed.connect(purchase_requested.emit.bind(id))
 		row.add_child(button)

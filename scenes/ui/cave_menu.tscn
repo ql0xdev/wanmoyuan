@@ -1,10 +1,11 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scenes/ui/cave_menu.gd" id="1_cave"]
 [ext_resource type="Theme" path="res://scenes/ui/menu_theme.tres" id="2_theme"]
 [ext_resource type="Script" path="res://scenes/ui/safe_area.gd" id="3_safe"]
 [ext_resource type="PackedScene" path="res://scenes/ui/equipment_menu.tscn" id="4_equipment"]
 [ext_resource type="PackedScene" path="res://scenes/ui/game_menu.tscn" id="5_menu"]
+[ext_resource type="Script" path="res://scenes/ui/ui_backdrop.gd" id="6_backdrop"]
 
 [node name="CaveMenu" type="Control"]
 layout_mode = 3
@@ -16,13 +17,13 @@ grow_vertical = 2
 theme = ExtResource("2_theme")
 script = ExtResource("1_cave")
 
-[node name="Background" type="ColorRect" parent="."]
+[node name="Background" type="Control" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 mouse_filter = 2
-color = Color(0.07, 0.11, 0.12, 1)
+script = ExtResource("6_backdrop")
 
 [node name="SafeArea" type="Control" parent="."]
 layout_mode = 1
@@ -56,7 +57,7 @@ anchor_bottom = 1.0
 mouse_filter = 2
 horizontal_alignment = 1
 vertical_alignment = 1
-theme_override_colors/font_color = Color(1, 0.87, 0.57, 1)
+theme_override_colors/font_color = Color(0.941176, 0.776471, 0.454902, 1)
 theme_override_font_sizes/font_size = 58
 text = "洞府"
 
@@ -81,10 +82,6 @@ tab_alignment = 1
 
 [node name="修行" type="MarginContainer" parent="SafeArea/Margin/Content/Tabs"]
 layout_mode = 2
-theme_override_constants/margin_left = 16
-theme_override_constants/margin_top = 12
-theme_override_constants/margin_right = 16
-theme_override_constants/margin_bottom = 12
 
 [node name="Scroll" type="ScrollContainer" parent="SafeArea/Margin/Content/Tabs/修行"]
 layout_mode = 2
@@ -95,31 +92,50 @@ scroll_deadzone = 10
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
-theme_override_constants/separation = 10
+theme_override_constants/separation = 14
 alignment = 1
+
+[node name="RealmCaption" type="Label" parent="SafeArea/Margin/Content/Tabs/修行/Scroll/Details"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.545098, 0.580392, 0.619608, 1)
+text = "当 前 境 界"
+horizontal_alignment = 1
 
 [node name="Realm" type="Label" parent="SafeArea/Margin/Content/Tabs/修行/Scroll/Details"]
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.87, 0.57, 1)
-theme_override_font_sizes/font_size = 36
+theme_override_colors/font_color = Color(0.941176, 0.776471, 0.454902, 1)
+theme_override_font_sizes/font_size = 60
 horizontal_alignment = 1
 
-[node name="Stats" type="Label" parent="SafeArea/Margin/Content/Tabs/修行/Scroll/Details"]
+[node name="Stats" type="GridContainer" parent="SafeArea/Margin/Content/Tabs/修行/Scroll/Details"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 25
-horizontal_alignment = 1
-autowrap_mode = 3
+columns = 2
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
 
 [node name="Progress" type="Label" parent="SafeArea/Margin/Content/Tabs/修行/Scroll/Details"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 25
+theme_override_colors/font_color = Color(0.545098, 0.580392, 0.619608, 1)
+theme_override_font_sizes/font_size = 20
 horizontal_alignment = 1
 autowrap_mode = 3
 
 [node name="Breakthrough" type="Button" parent="SafeArea/Margin/Content/Tabs/修行/Scroll/Details"]
-custom_minimum_size = Vector2(300, 64)
+custom_minimum_size = Vector2(426, 78)
 layout_mode = 2
 size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 32
+
+[node name="BreakthroughBar" type="ProgressBar" parent="SafeArea/Margin/Content/Tabs/修行/Scroll/Details"]
+custom_minimum_size = Vector2(380, 10)
+layout_mode = 2
+size_flags_horizontal = 4
+show_percentage = false
+
+[node name="BreakthroughProgress" type="Label" parent="SafeArea/Margin/Content/Tabs/修行/Scroll/Details"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.337255, 0.831373, 0.866667, 1)
+horizontal_alignment = 1
 
 [node name="功法" type="ScrollContainer" parent="SafeArea/Margin/Content/Tabs"]
 visible = false
@@ -159,21 +175,22 @@ autowrap_mode = 3
 
 [node name="Stones" type="Label" parent="SafeArea/Margin/Content"]
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.84, 0.44, 1)
+theme_override_colors/font_color = Color(0.337255, 0.831373, 0.866667, 1)
 theme_override_font_sizes/font_size = 30
 horizontal_alignment = 1
 
 [node name="Status" type="Label" parent="SafeArea/Margin/Content"]
 visible = false
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.81, 0.55, 1)
+theme_override_colors/font_color = Color(0.545098, 0.580392, 0.619608, 1)
 theme_override_font_sizes/font_size = 23
 horizontal_alignment = 1
 autowrap_mode = 3
 
 [node name="Enter" type="Button" parent="SafeArea/Margin/Content"]
-custom_minimum_size = Vector2(0, 76)
+custom_minimum_size = Vector2(0, 88)
 layout_mode = 2
+theme_override_font_sizes/font_size = 32
 text = "进入秘境"
 
 [node name="Back" type="Button" parent="SafeArea/Margin/Content"]
@@ -191,7 +208,7 @@ anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 mouse_filter = 2
-color = Color(1, 0.78, 0.24, 0.42)
+color = Color(0.941176, 0.776471, 0.454902, 0.55)
 
 [node name="BreakthroughNotice" type="Label" parent="."]
 visible = false
@@ -200,10 +217,10 @@ anchor_top = 0.34
 anchor_right = 1.0
 anchor_bottom = 0.46
 mouse_filter = 2
-theme_override_colors/font_color = Color(1, 0.87, 0.42, 1)
-theme_override_colors/font_outline_color = Color(0.10, 0.08, 0.03, 1)
-theme_override_constants/outline_size = 6
-theme_override_font_sizes/font_size = 58
+theme_override_colors/font_color = Color(0.941176, 0.776471, 0.454902, 1)
+theme_override_colors/font_outline_color = Color(0.050980, 0.066667, 0.090196, 1)
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/font_size = 72
 horizontal_alignment = 1
 vertical_alignment = 1
 

@@ -1,5 +1,7 @@
 extends Control
 
+const Look = preload("res://scenes/ui/ui_look.gd")
+
 signal direction_changed(direction: Vector2)
 signal reserved_button_tapped(button: Control)
 
@@ -28,6 +30,8 @@ func _input(event: InputEvent) -> void:
 				_button_finger = -1
 				var tapped := _touch_button
 				_touch_button = null
+				if tapped is Button:
+					Look.press_feedback(tapped, false)
 				if not event.canceled and tapped == _button_at(event.position):
 					reserved_button_tapped.emit(tapped)
 			get_viewport().set_input_as_handled()
@@ -37,6 +41,8 @@ func _input(event: InputEvent) -> void:
 			if _button_finger == -1:
 				_button_finger = event.index
 				_touch_button = button
+				if button is Button:
+					Look.press_feedback(button, true)
 			get_viewport().set_input_as_handled()
 			return
 		if event.index == _finger_index and (not event.pressed or event.canceled):
@@ -92,6 +98,8 @@ func _set_direction(direction: Vector2) -> void:
 
 func reset() -> void:
 	_button_finger = -1
+	if _touch_button is Button:
+		Look.press_feedback(_touch_button, false)
 	_touch_button = null
 	_reset_movement()
 

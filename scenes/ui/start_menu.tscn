@@ -1,8 +1,9 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scenes/ui/start_menu.gd" id="1_start"]
 [ext_resource type="Theme" path="res://scenes/ui/menu_theme.tres" id="2_theme"]
 [ext_resource type="Script" path="res://scenes/ui/safe_area.gd" id="3_safe"]
+[ext_resource type="Script" path="res://scenes/ui/ui_backdrop.gd" id="4_backdrop"]
 
 [node name="StartMenu" type="Control"]
 layout_mode = 3
@@ -14,13 +15,14 @@ grow_vertical = 2
 theme = ExtResource("2_theme")
 script = ExtResource("1_start")
 
-[node name="Background" type="ColorRect" parent="."]
+[node name="Background" type="Control" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 mouse_filter = 2
-color = Color(0.07, 0.11, 0.12, 1)
+script = ExtResource("4_backdrop")
+emblem = true
 
 [node name="Center" type="CenterContainer" parent="."]
 clip_contents = true
@@ -29,27 +31,41 @@ mouse_filter = 2
 script = ExtResource("3_safe")
 
 [node name="Content" type="VBoxContainer" parent="Center"]
-custom_minimum_size = Vector2(328, 0)
+custom_minimum_size = Vector2(380, 0)
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 44
+theme_override_constants/separation = 18
+
+[node name="Wordmark" type="Label" parent="Center/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.545098, 0.580392, 0.619608, 1)
+theme_override_font_sizes/font_size = 20
+text = "D E M O N   A B Y S S"
+horizontal_alignment = 1
 
 [node name="Title" type="Label" parent="Center/Content"]
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.87, 0.57, 1)
-theme_override_font_sizes/font_size = 79
+theme_override_colors/font_color = Color(0.941176, 0.776471, 0.454902, 1)
+theme_override_font_sizes/font_size = 90
 text = "万魔渊"
 horizontal_alignment = 1
 
-[node name="Start" type="Button" parent="Center/Content"]
-custom_minimum_size = Vector2(0, 76)
+[node name="Ornament" type="Label" parent="Center/Content"]
 layout_mode = 2
+theme_override_colors/font_color = Color(0.337255, 0.831373, 0.866667, 1)
+text = "——  ◇  ——"
+horizontal_alignment = 1
+
+[node name="Start" type="Button" parent="Center/Content"]
+custom_minimum_size = Vector2(0, 88)
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
 text = "开始修行"
 
 [node name="Status" type="Label" parent="Center/Content"]
 visible = false
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.64, 0.61, 1)
+theme_override_colors/font_color = Color(0.545098, 0.580392, 0.619608, 1)
 theme_override_font_sizes/font_size = 23
 horizontal_alignment = 1
 

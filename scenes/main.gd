@@ -25,6 +25,7 @@ const RunInventory = preload("res://scripts/run_inventory.gd")
 const Pills = preload("res://scripts/pill_catalog.gd")
 const BattleEffects = preload("res://scenes/effects/battle_effects.gd")
 const BattleAudio = preload("res://scenes/effects/battle_audio.gd")
+const Look = preload("res://scenes/ui/ui_look.gd")
 const WOLF_SCENE := preload("res://scenes/enemies/wolf_demon.tscn")
 const CROW_SCENE := preload("res://scenes/enemies/crow_demon.tscn")
 const GOLEM_SCENE := preload("res://scenes/enemies/stone_golem.tscn")
@@ -113,6 +114,8 @@ func configure_run(abyss: String, loadout: Array) -> bool:
 
 
 func _ready() -> void:
+	Look.skin_buttons($TouchUI/SafeArea)
+	Look.animate_panel(_gear_overlay, _gear_overlay)
 	_abyss = Cultivation.ABYSSES[_abyss_id]
 	_inventory.setup(SaveManager.equipped_items())
 	_player.stats.configure(SaveManager.realm(), SaveManager.passive_levels(), _inventory.worn)
@@ -129,7 +132,7 @@ func _ready() -> void:
 	_camera.snap_to(_player.global_position)
 	_ground.follow(_camera.focus)
 	_ground.set_abyss_tint(_abyss.color)
-	_effects.configure(_camera, $DeathBursts)
+	_effects.configure(_camera.presentation, $DeathBursts, $LootBeams)
 	_skills.configure(_player, _living_enemies, _launch_sword, _camera, _loadout)
 	_joystick.reserved_buttons.assign([_hud.shop_button, _hud.bag_button, _hud.menu_button])
 	_joystick.reserved_button_tapped.connect(_on_battle_button_tapped)
@@ -274,6 +277,7 @@ func _spawn_boss() -> void:
 		return
 	_boss_spawned = true
 	_hud.show_boss(_abyss.boss, boss.max_health)
+	_camera.shake_view()
 
 
 func _summon_wolves(origin: Vector3) -> void:
@@ -365,13 +369,16 @@ func _roll_equipment(enemy: Enemy) -> void:
 		return
 	for i in range(enemy.equipment_count):
 		var item := Equipment.roll(_abyss.tier, enemy.purple_chance, _loot_rng)
+		var quality_color: Color = Equipment.COLORS[item.quality]
+		var visual_offset := (i - (enemy.equipment_count - 1) * 0.5) * 22.0
+		_effects.show_loot_beam(enemy.global_position + Vector3.RIGHT * visual_offset, quality_color)
 		var stone_value := _inventory.collect(item)
 		if stone_value > 0:
 			_spirit_stones += stone_value
 			_hud.set_spirit_stones(_spirit_stones)
 			_hud.show_loot("行囊已满 · 自动分解 +%d 灵石" % stone_value, Color("#ffda91"))
 		else:
-			_hud.show_loot("获得 %s" % Equipment.title(item), Equipment.COLORS[item.quality])
+			_hud.show_loot("获得 %s" % Equipment.title(item), quality_color)
 
 
 func _recycle_wolf(enemy: Enemy) -> void:

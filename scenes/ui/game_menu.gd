@@ -1,5 +1,7 @@
 extends Control
 
+const Look = preload("res://scenes/ui/ui_look.gd")
+
 signal closed
 
 const RUN_WARNING := "本局未结算的灵石和装备不会保留，下次从洞府开始。"
@@ -12,6 +14,10 @@ const RUN_WARNING := "本局未结算的灵石和装备不会保留，下次从�
 
 var _in_battle := false
 var _confirming := false
+
+
+func _ready() -> void:
+	Look.animate_panel(self, $Center)
 
 
 func open(in_battle: bool) -> void:

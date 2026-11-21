@@ -1,12 +1,14 @@
 extends Control
 
 const CAVE_SCENE := "res://scenes/ui/cave_menu.tscn"
+const Look = preload("res://scenes/ui/ui_look.gd")
 
 @onready var _start: Button = $Center/Content/Start
 @onready var _status: Label = $Center/Content/Status
 
 
 func _ready() -> void:
+	Look.skin_button(_start)
 	if SaveManager.load_error() != OK:
 		_start.disabled = true
 		_status.text = "无法读取存档，原文件未修改。"

@@ -1,42 +1,69 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scenes/ui/battle_hud.gd" id="1_hud"]
 [ext_resource type="Theme" path="res://scenes/ui/menu_theme.tres" id="2_theme"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_top"]
-bg_color = Color(0.08, 0.12, 0.13, 0.92)
-corner_radius_top_left = 10
-corner_radius_top_right = 10
-corner_radius_bottom_left = 10
-corner_radius_bottom_right = 10
+bg_color = Color(0.086275, 0.105882, 0.133333, 0.96)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.188235, 0.211765, 0.239216, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_left = 12
+corner_radius_bottom_right = 12
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_empty"]
-bg_color = Color(0.15, 0.21, 0.22, 1)
-corner_radius_top_left = 5
-corner_radius_top_right = 5
-corner_radius_bottom_left = 5
-corner_radius_bottom_right = 5
+bg_color = Color(0.129412, 0.149020, 0.176471, 1)
+corner_radius_top_left = 18
+corner_radius_top_right = 18
+corner_radius_bottom_left = 18
+corner_radius_bottom_right = 18
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_fill"]
-bg_color = Color(0.21, 0.51, 0.43, 1)
-corner_radius_top_left = 5
-corner_radius_top_right = 5
-corner_radius_bottom_left = 5
-corner_radius_bottom_right = 5
+bg_color = Color(0.337255, 0.831373, 0.866667, 1)
+corner_radius_top_left = 15
+corner_radius_top_right = 15
+corner_radius_bottom_left = 15
+corner_radius_bottom_right = 15
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_health"]
-bg_color = Color(0.64, 0.23, 0.25, 1)
-corner_radius_top_left = 5
-corner_radius_top_right = 5
-corner_radius_bottom_left = 5
-corner_radius_bottom_right = 5
+bg_color = Color(0.898039, 0.325490, 0.294118, 1)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_left = 16
+corner_radius_bottom_right = 16
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_boss"]
-bg_color = Color(0.65, 0.21, 0.43, 1)
-corner_radius_top_left = 5
-corner_radius_top_right = 5
-corner_radius_bottom_left = 5
-corner_radius_bottom_right = 5
+bg_color = Color(0.55, 0.14, 0.19, 1)
+corner_radius_top_left = 22
+corner_radius_top_right = 22
+corner_radius_bottom_left = 22
+corner_radius_bottom_right = 22
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_boss_empty"]
+bg_color = Color(0.129412, 0.149020, 0.176471, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.941176, 0.776471, 0.454902, 0.78)
+corner_radius_top_left = 22
+corner_radius_top_right = 22
+corner_radius_bottom_left = 22
+corner_radius_bottom_right = 22
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_boss_banner"]
+bg_color = Color(0.050980, 0.066667, 0.090196, 0.93)
+content_margin_left = 16.0
+content_margin_top = 16.0
+content_margin_right = 16.0
+content_margin_bottom = 16.0
+border_width_top = 1
+border_width_bottom = 1
+border_color = Color(0.898039, 0.325490, 0.294118, 0.80)
 
 [node name="BattleHUD" type="Control"]
 layout_mode = 3
@@ -60,15 +87,15 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_top")
 [node name="Margin" type="MarginContainer" parent="Top"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/margin_left = 14
-theme_override_constants/margin_top = 8
-theme_override_constants/margin_right = 14
-theme_override_constants/margin_bottom = 12
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
 
 [node name="Rows" type="VBoxContainer" parent="Top/Margin"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 4
+theme_override_constants/separation = 8
 
 [node name="Heading" type="HBoxContainer" parent="Top/Margin/Rows"]
 layout_mode = 2
@@ -77,8 +104,8 @@ mouse_filter = 2
 [node name="Realm" type="Label" parent="Top/Margin/Rows/Heading"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 25
-horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.941176, 0.776471, 0.454902, 1)
+theme_override_font_sizes/font_size = 32
 
 [node name="MenuButton" type="Button" parent="Top/Margin/Rows/Heading"]
 custom_minimum_size = Vector2(80, 48)
@@ -89,7 +116,7 @@ theme_override_font_sizes/font_size = 24
 text = "菜单"
 
 [node name="Experience" type="ProgressBar" parent="Top/Margin/Rows"]
-custom_minimum_size = Vector2(0, 28)
+custom_minimum_size = Vector2(0, 30)
 layout_mode = 2
 mouse_filter = 2
 theme_override_styles/background = SubResource("StyleBoxFlat_empty")
@@ -103,16 +130,18 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_font_sizes/font_size = 19
+theme_override_colors/font_outline_color = Color(0.050980, 0.066667, 0.090196, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 20
 horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="Health" type="ProgressBar" parent="."]
 layout_mode = 1
 offset_left = 18.0
-offset_top = 134.0
-offset_right = 230.0
-offset_bottom = 166.0
+offset_top = 152.0
+offset_right = 240.0
+offset_bottom = 184.0
 mouse_filter = 2
 theme_override_styles/background = SubResource("StyleBoxFlat_empty")
 theme_override_styles/fill = SubResource("StyleBoxFlat_health")
@@ -123,7 +152,9 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-theme_override_font_sizes/font_size = 19
+theme_override_colors/font_outline_color = Color(0.050980, 0.066667, 0.090196, 1)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 20
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -132,16 +163,17 @@ layout_mode = 1
 anchor_left = 1.0
 anchor_right = 1.0
 offset_left = -18.0
-offset_top = 126.0
+offset_top = 144.0
 offset_right = -18.0
-offset_bottom = 174.0
+offset_bottom = 192.0
 grow_horizontal = 0
 mouse_filter = 2
-theme_override_constants/separation = 14
+theme_override_constants/separation = 12
 
 [node name="SurvivalTime" type="Label" parent="BattleCounters"]
 layout_mode = 2
-theme_override_colors/font_outline_color = Color(0.08, 0.12, 0.13, 1)
+theme_override_colors/font_color = Color(0.337255, 0.831373, 0.866667, 1)
+theme_override_colors/font_outline_color = Color(0.050980, 0.066667, 0.090196, 1)
 theme_override_constants/outline_size = 5
 theme_override_font_sizes/font_size = 24
 text = "00:00"
@@ -150,7 +182,7 @@ vertical_alignment = 1
 [node name="SpiritStones" type="HBoxContainer" parent="BattleCounters"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 5
+theme_override_constants/separation = 8
 
 [node name="Icon" type="Control" parent="BattleCounters/SpiritStones"]
 custom_minimum_size = Vector2(18, 24)
@@ -160,13 +192,13 @@ mouse_filter = 2
 
 [node name="Diamond" type="Polygon2D" parent="BattleCounters/SpiritStones/Icon"]
 position = Vector2(9, 12)
-color = Color(1, 0.76, 0.26, 1)
+color = Color(0.941176, 0.776471, 0.454902, 1)
 polygon = PackedVector2Array(0, -10, 8, 0, 0, 10, -8, 0)
 
 [node name="Amount" type="Label" parent="BattleCounters/SpiritStones"]
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.84, 0.44, 1)
-theme_override_colors/font_outline_color = Color(0.08, 0.12, 0.13, 1)
+theme_override_colors/font_color = Color(0.337255, 0.831373, 0.866667, 1)
+theme_override_colors/font_outline_color = Color(0.050980, 0.066667, 0.090196, 1)
 theme_override_constants/outline_size = 5
 theme_override_font_sizes/font_size = 24
 text = "0"
@@ -192,34 +224,54 @@ text = "行囊"
 visible = false
 layout_mode = 1
 anchor_right = 1.0
-offset_left = 18.0
-offset_top = 184.0
-offset_right = -18.0
-offset_bottom = 218.0
+offset_left = 8.0
+offset_top = 204.0
+offset_right = -8.0
+offset_bottom = 249.0
 mouse_filter = 2
-theme_override_styles/background = SubResource("StyleBoxFlat_empty")
+theme_override_styles/background = SubResource("StyleBoxFlat_boss_empty")
 theme_override_styles/fill = SubResource("StyleBoxFlat_boss")
 show_percentage = false
 
-[node name="Value" type="Label" parent="BossHealth"]
+[node name="Caption" type="HBoxContainer" parent="BossHealth"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-theme_override_font_sizes/font_size = 22
-horizontal_alignment = 1
+mouse_filter = 2
+alignment = 1
+theme_override_constants/separation = 16
+
+[node name="BossName" type="Label" parent="BossHealth/Caption"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.941176, 0.776471, 0.454902, 1)
+theme_override_font_sizes/font_size = 27
 vertical_alignment = 1
 
-[node name="BossNotice" type="Label" parent="."]
+[node name="Value" type="Label" parent="BossHealth/Caption"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.337255, 0.831373, 0.866667, 1)
+theme_override_font_sizes/font_size = 22
+vertical_alignment = 1
+
+[node name="BossNotice" type="PanelContainer" parent="."]
 visible = false
 layout_mode = 1
 anchor_right = 1.0
-offset_top = 238.0
-offset_bottom = 322.0
-theme_override_colors/font_color = Color(1, 0.59, 0.52, 1)
-theme_override_colors/font_outline_color = Color(0.13, 0.07, 0.07, 1)
-theme_override_constants/outline_size = 7
-theme_override_font_sizes/font_size = 56
+offset_left = 18.0
+offset_top = 268.0
+offset_right = -18.0
+offset_bottom = 350.0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_boss_banner")
+
+[node name="Title" type="Label" parent="BossNotice"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.941176, 0.776471, 0.454902, 1)
+theme_override_colors/font_outline_color = Color(0.77, 0.19, 0.21, 1)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 52
+text = "魔尊现世"
 horizontal_alignment = 1
 vertical_alignment = 1
 

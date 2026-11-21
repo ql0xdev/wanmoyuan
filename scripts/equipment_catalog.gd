@@ -7,7 +7,7 @@ const SLOTS := {
 }
 const TIERS := ["炼气", "筑基", "金丹"]
 const QUALITIES := ["法器", "灵器", "宝器", "仙器"]
-const COLORS := [Color("#e5ece9"), Color("#8bdfac"), Color("#88c4ff"), Color("#dba2fa")]
+const COLORS := [Color("#b0b8c0"), Color("#4caf50"), Color("#42a5f5"), Color("#ab47bc")]
 const SALVAGE := [5, 15, 40, 100]
 const BAG_CAPACITY := 12
 const STORAGE_CAPACITY := 200
@@ -78,8 +78,8 @@ static func describe(item: Dictionary) -> String:
 		var parts := PackedStringArray()
 		for stat: String in group:
 			var name: String = AFFIXES[stat].name if AFFIXES.has(stat) else "气血上限"
-			var format := "%s +%d" if _flat(stat) else "%s +%d%%"
-			parts.append(format % [name, roundi(group[stat] * (1.0 if _flat(stat) else 100.0))])
+			var amount := ("+%d" if _flat(stat) else "+%d%%") % roundi(group[stat] * (1.0 if _flat(stat) else 100.0))
+			parts.append("[color=#56d4dd]%s[/color] [color=#f0c674]%s[/color]" % [name, amount])
 		if not parts.is_empty():
 			details.append(("基础：" if details.is_empty() else "词条：") + "　".join(parts))
 	return "\n".join(details)

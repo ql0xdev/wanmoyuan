@@ -4,16 +4,16 @@
 [ext_resource type="Theme" path="res://scenes/ui/menu_theme.tres" id="2_theme"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
-bg_color = Color(0.08, 0.13, 0.14, 1)
+bg_color = Color(0.086275, 0.105882, 0.133333, 1)
 border_width_left = 2
 border_width_top = 2
 border_width_right = 2
 border_width_bottom = 2
-border_color = Color(0.30, 0.46, 0.43, 1)
-corner_radius_top_left = 16
-corner_radius_top_right = 16
-corner_radius_bottom_left = 16
-corner_radius_bottom_right = 16
+border_color = Color(0.188235, 0.211765, 0.239216, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_left = 12
+corner_radius_bottom_right = 12
 
 [node name="ShopMenu" type="Control"]
 process_mode = 3
@@ -33,7 +33,7 @@ anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 mouse_filter = 2
-color = Color(0.015, 0.025, 0.028, 0.88)
+color = Color(0.050980, 0.066667, 0.090196, 0.88)
 
 [node name="Panel" type="PanelContainer" parent="."]
 layout_mode = 1
@@ -50,14 +50,14 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/margin_left = 16
-theme_override_constants/margin_top = 12
+theme_override_constants/margin_top = 16
 theme_override_constants/margin_right = 16
-theme_override_constants/margin_bottom = 12
+theme_override_constants/margin_bottom = 16
 
 [node name="Content" type="VBoxContainer" parent="Panel/Margin"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 16
 
 [node name="Header" type="HBoxContainer" parent="Panel/Margin/Content"]
 layout_mode = 2
@@ -67,12 +67,13 @@ theme_override_constants/separation = 12
 [node name="Title" type="Label" parent="Panel/Margin/Content/Header"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 30
+theme_override_colors/font_color = Color(0.941176, 0.776471, 0.454902, 1)
+theme_override_font_sizes/font_size = 38
 text = "炼丹房"
 
 [node name="Balance" type="Label" parent="Panel/Margin/Content/Header"]
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.84, 0.44, 1)
+theme_override_colors/font_color = Color(0.337255, 0.831373, 0.866667, 1)
 theme_override_font_sizes/font_size = 25
 
 [node name="Close" type="Button" parent="Panel/Margin/Content/Header"]
@@ -97,7 +98,7 @@ theme_override_constants/separation = 8
 
 [node name="Status" type="Label" parent="Panel/Margin/Content"]
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.84, 0.44, 1)
+theme_override_colors/font_color = Color(0.545098, 0.580392, 0.619608, 1)
 theme_override_font_sizes/font_size = 21
 autowrap_mode = 3
 text = " "
