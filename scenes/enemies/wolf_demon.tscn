@@ -1,21 +1,32 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scenes/enemies/melee_enemy.gd" id="1_wolf"]
+[ext_resource type="CapsuleMesh" path="res://scenes/world/capsule_mesh.tres" id="2_capsule"]
 
-[sub_resource type="CircleShape2D" id="CircleShape2D_wolf"]
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_wolf"]
 radius = 16.0
+height = 32.0
 
-[node name="WolfDemon" type="CharacterBody2D"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_wolf"]
+albedo_color = Color(0.87, 0.27, 0.23, 1)
+roughness = 0.86
+
+[node name="WolfDemon" type="CharacterBody3D"]
 collision_layer = 0
 collision_mask = 0
 motion_mode = 1
+axis_lock_linear_y = true
+safe_margin = 0.08
 script = ExtResource("1_wolf")
 stone_drop_amount = 5
 stone_drop_chance = 0.1
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
-shape = SubResource("CircleShape2D_wolf")
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("CylinderShape3D_wolf")
 
-[node name="Body" type="Polygon2D" parent="."]
-color = Color(0.89, 0.38, 0.31, 1)
-polygon = PackedVector2Array(-15, -18, -5, -12, 5, -12, 15, -18, 15, 6, 8, 15, -8, 15, -15, 6)
+[node name="Body" type="MeshInstance3D" parent="."]
+position = Vector3(0, 19.2, 0)
+scale = Vector3(15, 15.36, 15)
+cast_shadow = 0
+material_override = SubResource("StandardMaterial3D_wolf")
+mesh = ExtResource("2_capsule")

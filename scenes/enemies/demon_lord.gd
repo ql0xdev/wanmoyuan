@@ -1,7 +1,7 @@
 extends "res://scenes/enemies/melee_enemy.gd"
 
-signal flame_cast(origin: Vector2, direction: Vector2, damage: int)
-signal wolves_summoned(origin: Vector2)
+signal flame_cast(origin: Vector3, direction: Vector3, damage: int)
+signal wolves_summoned(origin: Vector3)
 
 const FLAME_INTERVAL := 6.0
 const SUMMON_INTERVAL := 15.0
@@ -35,7 +35,8 @@ func _update_attack(delta: float) -> void:
 
 func _cast_flames() -> void:
 	# 以玩家方向为扇形中轴，五颗法球均匀展开。
-	var angle := global_position.direction_to(_target.global_position).angle()
+	var toward := _target.global_position - global_position
+	var angle := atan2(toward.z, toward.x)
 	for i in range(FLAME_COUNT):
-		var direction := Vector2.from_angle(angle + (float(i) - 2.0) * FLAME_STEP)
+		var direction := BattlePlane.direction(angle + (float(i) - 2.0) * FLAME_STEP)
 		flame_cast.emit(global_position, direction, FLAME_DAMAGE)

@@ -1,6 +1,7 @@
-extends CharacterBody2D
+extends CharacterBody3D
 
 const StatsManager = preload("res://scripts/stats_manager.gd")
+const BattlePlane = preload("res://scripts/battle_plane.gd")
 
 signal health_changed(current: int, maximum: int)
 signal hit
@@ -9,9 +10,12 @@ signal died
 const BODY_RADIUS := 16.0
 const INVULNERABILITY := 0.5
 const FLASH_INTERVAL := 0.08
-const HIT_TINT := Color(1.0, 0.26, 0.22, 0.55)
+const HIT_TINT := Color("#bc6356")
+const DEATH_TINT := Color("#562a26")
 
-@onready var _body: Polygon2D = $Body
+@onready var _body: MeshInstance3D = $Body
+@onready var _base_material := _body.material_override
+var _hit_material := StandardMaterial3D.new()
 
 var stats := StatsManager.new()
 var _base_max_health := StatsManager.BASE_HEALTH
@@ -20,7 +24,12 @@ var health := max_health
 var accepts_damage := true
 var _invulnerable_left := 0.0
 var _speed_boost_left := 0.0
-var _joystick_direction := Vector2.ZERO
+var _joystick_direction := Vector3.ZERO
+
+
+func _ready() -> void:
+	_hit_material.albedo_color = HIT_TINT
+	collision_mask |= BattlePlane.OBSTACLE_LAYER
 
 
 func _physics_process(delta: float) -> void:
@@ -30,8 +39,8 @@ func _physics_process(delta: float) -> void:
 		_update_hit_flash(delta)
 	_speed_boost_left = maxf(0.0, _speed_boost_left - delta)
 
-	var direction := Input.get_vector("move_left", "move_right", "move_up", "move_down")
-	if _joystick_direction != Vector2.ZERO:
+	var direction := BattlePlane.from_input(Input.get_vector("move_left", "move_right", "move_up", "move_down"))
+	if _joystick_direction != Vector3.ZERO:
 		direction = _joystick_direction
 
 	# 两种输入共用同一移动逻辑，斜向不加速，松手即停。
@@ -40,7 +49,7 @@ func _physics_process(delta: float) -> void:
 
 
 func _on_joystick_direction_changed(direction: Vector2) -> void:
-	_joystick_direction = direction
+	_joystick_direction = BattlePlane.from_input(direction)
 
 
 func is_alive() -> bool:
@@ -56,10 +65,11 @@ func take_damage(amount: int) -> void:
 	if is_alive():
 		_speed_boost_left = stats.hit_speed_duration
 		_invulnerable_left = INVULNERABILITY
-		_body.modulate = HIT_TINT
+		_body.material_override = _hit_material
 	else:
-		velocity = Vector2.ZERO
-		_body.modulate = Color(0.50, 0.20, 0.18)
+		velocity = Vector3.ZERO
+		_hit_material.albedo_color = DEATH_TINT
+		_body.material_override = _hit_material
 		died.emit()
 
 
@@ -68,10 +78,10 @@ func _update_hit_flash(delta: float) -> void:
 	_invulnerable_left = maxf(0.0, _invulnerable_left - delta)
 	if is_zero_approx(_invulnerable_left):
 		_invulnerable_left = 0.0
-		_body.modulate = Color.WHITE
+		_body.material_override = _base_material
 		return
 	var phase := floori((INVULNERABILITY - _invulnerable_left) / FLASH_INTERVAL)
-	_body.modulate = HIT_TINT if phase % 2 == 0 else Color.WHITE
+	_body.material_override = _hit_material if phase % 2 == 0 else _base_material
 
 
 func heal(amount: int) -> void:

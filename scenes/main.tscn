@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://scenes/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
@@ -11,21 +11,44 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/shop_menu.tscn" id="9_shop"]
 [ext_resource type="Script" path="res://scenes/effects/battle_effects.gd" id="10_effects"]
 [ext_resource type="Script" path="res://scenes/effects/battle_audio.gd" id="11_audio"]
+[ext_resource type="PackedScene" path="res://scenes/world/battle_world.tscn" id="12_world"]
+[ext_resource type="Script" path="res://scenes/world/battle_camera.gd" id="13_camera"]
 
-[node name="Main" type="Node2D"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_bursts"]
+shading_mode = 0
+vertex_color_use_as_albedo = true
+
+[node name="Main" type="Node3D"]
 script = ExtResource("1_main")
+
+[node name="BattleWorld" parent="." instance=ExtResource("12_world")]
+
+[node name="Camera" type="Camera3D" parent="."]
+rotation = Vector3(-0.7853982, 0, 0)
+current = true
+fov = 50.0
+near = 5.0
+far = 4900.0
+script = ExtResource("13_camera")
 
 [node name="Player" parent="." instance=ExtResource("2_player")]
 
-[node name="Enemies" type="Node2D" parent="."]
+[node name="Enemies" type="Node3D" parent="."]
 
 [node name="SkillController" parent="." instance=ExtResource("4_skills")]
 
-[node name="Projectiles" type="Node2D" parent="."]
+[node name="Projectiles" type="Node3D" parent="."]
 
-[node name="Pickups" type="Node2D" parent="."]
+[node name="Pickups" type="Node3D" parent="."]
 
-[node name="BattleEffects" type="Node2D" parent="."]
+[node name="DeathBursts" type="MultiMeshInstance3D" parent="."]
+material_override = SubResource("StandardMaterial3D_bursts")
+cast_shadow = 0
+
+[node name="EffectsLayer" type="CanvasLayer" parent="."]
+layer = 0
+
+[node name="BattleEffects" type="Node2D" parent="EffectsLayer"]
 script = ExtResource("10_effects")
 
 [node name="BattleAudio" type="Node" parent="."]

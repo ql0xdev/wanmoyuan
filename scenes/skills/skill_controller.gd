@@ -1,7 +1,10 @@
-extends Node2D
+extends Node3D
 
 const Player = preload("res://scenes/player.gd")
 const Enemy = preload("res://scenes/enemies/enemy.gd")
+const BattlePlane = preload("res://scripts/battle_plane.gd")
+const BattleCamera = preload("res://scenes/world/battle_camera.gd")
+const SkillVisuals = preload("res://scenes/skills/skill_visuals.gd")
 
 signal swords_cast
 signal lightning_cast
@@ -27,25 +30,30 @@ const ORBIT_SPEED := 2.4
 const ORB_RADIUS := 11.0
 const ICE_RADIUS := 200.0
 
+@onready var _visuals: SkillVisuals = $Visuals
+
 var _levels: Array[int] = [1, 0, 0, 0, 0]
 var _player: Player
+var _camera: BattleCamera
 var _enemies: Array[Enemy]
 var _launch_sword: Callable
 var _sword_left := SWORD_INTERVAL
 var _lightning_left := LIGHTNING_INTERVAL
 var _heal_left := 0.0
 var _flash_left := 0.0
-var _lightning_points := PackedVector2Array()
+var _lightning_points := PackedVector3Array()
 var _orbit_angle := 0.0
-var _orb_offsets := PackedVector2Array()
+var _orb_offsets := PackedVector3Array()
 var _orb_contacts: Dictionary[int, int] = {}
 var _next_contacts: Dictionary[int, int] = {}
 
 
-func configure(player: Player, enemies: Array[Enemy], launch_sword: Callable) -> void:
+func configure(player: Player, enemies: Array[Enemy], launch_sword: Callable, camera: BattleCamera) -> void:
 	_player = player
 	_enemies = enemies
 	_launch_sword = launch_sword
+	_camera = camera
+	_visuals.setup(ORB_RADIUS, ICE_RADIUS, LIGHTNING_RADIUS, CAP + 2, CAP + 1)
 
 
 func roll_choices() -> Array[int]:
@@ -93,8 +101,9 @@ func apply_upgrade(skill: int) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	var redraw := _flash_left > 0.0
-	_flash_left = maxf(0.0, _flash_left - delta)
+	if _flash_left > 0.0:
+		_flash_left = maxf(0.0, _flash_left - delta)
+		_visuals.update_lightning(_flash_left / LIGHTNING_FLASH_TIME)
 	# 用基础冷却时间记录进度，换装后当前这轮也会按新速度推进。
 	var cooldown_step := delta / _player.stats.cooldown_multiplier
 	_sword_left -= cooldown_step
@@ -108,27 +117,27 @@ func _physics_process(delta: float) -> void:
 		if _lightning_left <= 0.0:
 			_lightning_left += LIGHTNING_INTERVAL
 			_cast_lightning(lightning_level)
-			redraw = true
 
 	var orb_level := _levels[Skill.ORBS]
 	if orb_level > 0:
 		_update_orbs(delta, orb_level)
-		redraw = true
+		_visuals.update_orbs(_player.global_position, _orb_offsets)
 
 	var ice_level := _levels[Skill.ICE]
 	if ice_level > 0:
 		_update_ice(ice_level)
-		redraw = true
+		_visuals.update_ice(_player.global_position)
 
 	var heal_level := _levels[Skill.HEAL]
 	if heal_level > 0:
 		_heal_left -= cooldown_step
 		if _heal_left <= 0.0:
 			_heal_left += HEAL_INTERVAL[heal_level - 1]
+			var prior_health := _player.health
 			_player.heal(HEAL_AMOUNT[heal_level - 1])
-
-	if redraw:
-		queue_redraw()
+			if _player.health > prior_health:
+				_visuals.show_heal()
+		_visuals.update_heal(_player.global_position, delta)
 
 
 func _cast_swords(level: int) -> void:
@@ -150,37 +159,37 @@ func _cast_swords(level: int) -> void:
 	# 多把剑错开出剑位置，但仍瞄准同一个最近的敌人。
 	for i in range(count):
 		var lateral := (float(i) - (count - 1) * 0.5) * 18.0
-		var start := origin + direction.orthogonal() * lateral - direction * (i * 22.0)
+		var start := origin + direction.cross(Vector3.UP) * lateral - direction * (i * 22.0)
 		_launch_sword.call(start, start.direction_to(target), damage)
 	swords_cast.emit()
 
 
 func _cast_lightning(level: int) -> void:
-	var view := get_viewport_rect()
-	var canvas := get_canvas_transform()
-	var candidates := PackedVector2Array()
+	var view := get_viewport().get_visible_rect()
+	var candidates := PackedVector3Array()
 	for enemy in _enemies:
-		if view.has_point(canvas * enemy.global_position):
+		if not _camera.is_position_behind(enemy.global_position) and view.has_point(_camera.unproject_position(enemy.global_position)):
 			candidates.append(enemy.global_position)
-	var to_world := canvas.affine_inverse()
 	var damage := _player.stats.damage(LIGHTNING_DAMAGE[level - 1])
 	_lightning_points.clear()
 	# 随机选屏内敌人落雷；可用目标不足时，余下的雷随机落在屏内。
 	for i in range(level + _player.stats.lightning_count):
-		var point: Vector2
+		var point: Vector3
 		if not candidates.is_empty():
 			var index := randi_range(0, candidates.size() - 1)
 			point = candidates[index]
 			candidates.remove_at(index)
 		else:
 			var screen_point := Vector2(randf_range(view.position.x, view.end.x), randf_range(view.position.y, view.end.y))
-			point = to_world * screen_point
+			point = _camera.ground_at(screen_point)
 		_lightning_points.append(point)
 		for j in range(_enemies.size() - 1, -1, -1):
 			var enemy := _enemies[j]
 			if point.distance_squared_to(enemy.global_position) <= LIGHTNING_RADIUS * LIGHTNING_RADIUS:
 				enemy.take_damage(damage)
 	_flash_left = LIGHTNING_FLASH_TIME
+	_visuals.show_lightning(_lightning_points)
+	_visuals.update_lightning(1.0)
 	lightning_cast.emit()
 
 
@@ -189,7 +198,7 @@ func _update_orbs(delta: float, level: int) -> void:
 	var count := level + 2
 	_orb_offsets.resize(count)
 	for i in range(count):
-		_orb_offsets[i] = Vector2.from_angle(_orbit_angle + TAU * i / count) * ORBIT_RADIUS
+		_orb_offsets[i] = BattlePlane.direction(_orbit_angle + TAU * i / count) * ORBIT_RADIUS
 
 	var origin := _player.global_position
 	var damage_per_orb := _player.stats.damage(ORB_DAMAGE[level - 1])
@@ -229,21 +238,3 @@ func _update_ice(level: int) -> void:
 	for enemy in _enemies:
 		var inside := origin.distance_squared_to(enemy.global_position) <= ICE_RADIUS * ICE_RADIUS
 		enemy.speed_multiplier = slowed_speed if inside else 1.0
-
-
-func _draw() -> void:
-	if _player == null:
-		return
-	var center := to_local(_player.global_position)
-	if _levels[Skill.ICE] > 0:
-		draw_circle(center, ICE_RADIUS, Color(0.38, 0.72, 1.0, 0.10))
-		draw_arc(center, ICE_RADIUS, 0.0, TAU, 64, Color(0.52, 0.81, 1.0, 0.55), 2.0, true)
-	for offset in _orb_offsets:
-		draw_circle(center + offset, ORB_RADIUS, Color("#ff923c"), true, -1.0, true)
-	if _flash_left > 0.0:
-		var alpha := _flash_left / LIGHTNING_FLASH_TIME
-		for point in _lightning_points:
-			var impact := to_local(point)
-			draw_circle(impact, LIGHTNING_RADIUS, Color(1.0, 0.89, 0.44, alpha * 0.35))
-			draw_line(impact + Vector2(12, -82), impact + Vector2(-12, -44), Color(1, 0.95, 0.65, alpha), 5.0)
-			draw_line(impact + Vector2(-12, -44), impact, Color(1, 0.95, 0.65, alpha), 5.0)

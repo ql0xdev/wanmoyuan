@@ -1,20 +1,20 @@
-extends Node2D
+extends Node3D
 
 const Player = preload("res://scenes/player.gd")
 
-signal collected(pickup: Node2D)
+signal collected(pickup: Node3D)
 
 const PICKUP_RADIUS := 16.0
 const MAGNET_DURATION := 0.35
 
 var amount := 1
 var _target: Player
-var _drop_position := Vector2.ZERO
+var _drop_position := Vector3.ZERO
 var _magnet_elapsed := 0.0
 var _magnet_active := false
 
 
-func drop(at: Vector2, target: Player, value := 1) -> void:
+func drop(at: Vector3, target: Player, value := 1) -> void:
 	global_position = at
 	amount = value
 	_target = target

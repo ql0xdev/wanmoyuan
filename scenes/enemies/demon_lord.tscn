@@ -1,14 +1,25 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scenes/enemies/demon_lord.gd" id="1_demon"]
+[ext_resource type="CapsuleMesh" path="res://scenes/world/capsule_mesh.tres" id="2_capsule"]
 
-[sub_resource type="CircleShape2D" id="CircleShape2D_boss"]
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_boss"]
 radius = 42.0
+height = 32.0
 
-[node name="DemonLord" type="CharacterBody2D"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_boss"]
+albedo_color = Color(0.34, 0.055, 0.08, 1)
+roughness = 0.7
+emission_enabled = true
+emission = Color(0.25, 0.025, 0.035, 1)
+emission_energy_multiplier = 0.45
+
+[node name="DemonLord" type="CharacterBody3D"]
 collision_layer = 0
 collision_mask = 0
 motion_mode = 1
+axis_lock_linear_y = true
+safe_margin = 0.08
 script = ExtResource("1_demon")
 max_health = 800
 move_speed = 80.0
@@ -17,9 +28,12 @@ body_radius = 42.0
 crystal_count = 0
 stone_drop_amount = 200
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
-shape = SubResource("CircleShape2D_boss")
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("CylinderShape3D_boss")
 
-[node name="Body" type="Polygon2D" parent="."]
-color = Color(0.84, 0.25, 0.42, 1)
-polygon = PackedVector2Array(-38, -38, -17, -24, 0, -36, 17, -24, 38, -38, 30, -14, 42, 8, 24, 33, 0, 42, -24, 33, -42, 8, -30, -14)
+[node name="Body" type="MeshInstance3D" parent="."]
+position = Vector3(0, 56, 0)
+scale = Vector3(40, 44.8, 40)
+cast_shadow = 0
+material_override = SubResource("StandardMaterial3D_boss")
+mesh = ExtResource("2_capsule")

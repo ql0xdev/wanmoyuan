@@ -1,6 +1,9 @@
-extends Node2D
+extends Node3D
 
 const ObjectPool = preload("res://scripts/object_pool.gd")
+const BattlePlane = preload("res://scripts/battle_plane.gd")
+const BattleCamera = preload("res://scenes/world/battle_camera.gd")
+const BattleGround = preload("res://scenes/world/battle_ground.gd")
 const Player = preload("res://scenes/player.gd")
 const Enemy = preload("res://scenes/enemies/enemy.gd")
 const CrowDemon = preload("res://scenes/enemies/crow_demon.gd")
@@ -26,7 +29,8 @@ const ORB_SCENE := preload("res://scenes/enemies/magic_orb.tscn")
 const SWORD_SCENE := preload("res://scenes/skills/flying_sword.tscn")
 const CRYSTAL_SCENE := preload("res://scenes/pickups/spirit_crystal.tscn")
 const STONE_SCENE := preload("res://scenes/pickups/spirit_stone.tscn")
-const STONE_DROP_OFFSET := Vector2(24.0, -24.0)
+const STONE_DROP_OFFSET := Vector3(24.0, 0.0, -24.0)
+const MAX_ENEMIES := 100
 const BASE_SPAWN_INTERVAL := 1.5
 const MIN_SPAWN_INTERVAL := 0.4
 const RAMP_STEP := 30.0
@@ -37,31 +41,25 @@ const GOLEM_INTERVAL := 30.0
 const BOSS_START := 180.0
 const BOSS_SUMMON_COUNT := 4
 const BOSS_SUMMON_RADIUS := 66.0
-const BOSS_FLAME_TINT := Color("#ff7d4d")
-const SHAKE_DURATION := 0.48
-const HIT_SHAKE_DURATION := 0.15
 const VICTORY_SLOW_DURATION := 0.5
 const VICTORY_TIME_SCALE := 0.45
 const TIME_EPSILON := 0.000001
 const SPAWN_MARGIN := 48.0
-const GRID_SIZE := 96
-const GROUND_COLOR := Color("#192322")
-const GRID_COLOR := Color("#2a3b37")
 
 enum Phase { BATTLE, VICTORY_SLOW, RESULT }
 
 @onready var _player: Player = $Player
-@onready var _camera: Camera2D = $Player/Camera2D
+@onready var _camera: BattleCamera = $Camera
+@onready var _ground: BattleGround = $BattleWorld
 @onready var _skills: SkillController = $SkillController
 @onready var _hud: BattleHUD = $TouchUI/SafeArea/BattleHUD
 @onready var _upgrade_menu: UpgradeMenu = $TouchUI/SafeArea/UpgradeMenu
 @onready var _joystick: JoystickControl = $TouchUI/SafeArea/VirtualJoystick
 @onready var _result_menu: ResultMenu = $TouchUI/SafeArea/ResultMenu
 @onready var _shop_menu: ShopMenu = $TouchUI/SafeArea/ShopMenu
-@onready var _effects: BattleEffects = $BattleEffects
+@onready var _effects: BattleEffects = $EffectsLayer/BattleEffects
 @onready var _audio: BattleAudio = $BattleAudio
 
-var _grid_bounds: Rect2i
 var _wolf_pool: ObjectPool
 var _crow_pool: ObjectPool
 var _golem_pool: ObjectPool
@@ -71,15 +69,12 @@ var _sword_pool: ObjectPool
 var _crystal_pool: ObjectPool
 var _stone_pool: ObjectPool
 var _living_enemies: Array[Enemy] = []
+var _active_enemy_count := 0
 var _elapsed := 0.0
 var _spawn_progress := 0.0
 var _spawn_mix_index := 0
 var _next_golem_at := GOLEM_START
 var _boss_spawned := false
-var _shake_left := 0.0
-var _boss_shake_offset := Vector2.ZERO
-var _hit_shake_offset := Vector2.ZERO
-var _hit_shake: Tween
 var _phase := Phase.BATTLE
 var _previous_time_scale := 1.0
 var _kills := 0
@@ -94,15 +89,18 @@ var _pending_breakthrough := ""
 
 
 func _ready() -> void:
-	_wolf_pool = ObjectPool.new(WOLF_SCENE, $Enemies, 200, _connect_enemy.bind(_recycle_wolf))
-	_crow_pool = ObjectPool.new(CROW_SCENE, $Enemies, 100, _connect_crow)
+	_wolf_pool = ObjectPool.new(WOLF_SCENE, $Enemies, 64, _connect_enemy.bind(_recycle_wolf))
+	_crow_pool = ObjectPool.new(CROW_SCENE, $Enemies, 24, _connect_crow)
 	_golem_pool = ObjectPool.new(GOLEM_SCENE, $Enemies, 8, _connect_enemy.bind(_recycle_golem))
 	_boss_pool = ObjectPool.new(BOSS_SCENE, $Enemies, 1, _connect_boss)
 	_orb_pool = ObjectPool.new(ORB_SCENE, $Projectiles, 100, _connect_orb)
 	_sword_pool = ObjectPool.new(SWORD_SCENE, $Projectiles, 100, _connect_sword)
 	_crystal_pool = ObjectPool.new(CRYSTAL_SCENE, $Pickups, 200, _connect_crystal)
 	_stone_pool = ObjectPool.new(STONE_SCENE, $Pickups, 32, _connect_stone)
-	_skills.configure(_player, _living_enemies, _launch_sword)
+	_camera.snap_to(_player.global_position)
+	_ground.follow(_camera.focus)
+	_effects.configure(_camera, $DeathBursts)
+	_skills.configure(_player, _living_enemies, _launch_sword, _camera)
 	_joystick.reserved_button = _hud.shop_button
 	_joystick.reserved_button_tapped.connect(_open_shop)
 	_hud.shop_button.pressed.connect(_open_shop)
@@ -110,21 +108,15 @@ func _ready() -> void:
 	_shop_menu.purchase_requested.connect(_purchase_artifact)
 	_skills.swords_cast.connect(_audio.play_cue.bind(BattleAudio.Cue.SWORD))
 	_skills.lightning_cast.connect(_audio.play_cue.bind(BattleAudio.Cue.LIGHTNING))
-	_player.hit.connect(_on_player_hit)
+	_player.hit.connect(_audio.play_cue.bind(BattleAudio.Cue.HIT))
 	_hud.set_health(_player.health, _player.max_health)
 	_hud.set_spirit_stones(_spirit_stones)
 	_refresh_hud()
-	_update_grid_bounds()
 
 
 func _process(delta: float) -> void:
-	if _shake_left > 0.0:
-		_shake_left = maxf(0.0, _shake_left - delta)
-		var t := SHAKE_DURATION - _shake_left
-		var strength := 12.0 * _shake_left / SHAKE_DURATION
-		_boss_shake_offset = Vector2(sin(t * 86.0), cos(t * 107.0)) * strength
-		_update_camera_shake()
-	_update_grid_bounds()
+	_camera.follow(_player.global_position, delta)
+	_ground.follow(_camera.focus)
 
 
 func _physics_process(delta: float) -> void:
@@ -133,7 +125,7 @@ func _physics_process(delta: float) -> void:
 	# 只累计实际战斗时间，通过刷新进度在提速时保留本轮已经等待的时间。
 	_spawn_progress += delta / _spawn_interval(_elapsed)
 	_elapsed += delta
-	while _spawn_progress + TIME_EPSILON >= 1.0:
+	while _spawn_progress + TIME_EPSILON >= 1.0 and _can_spawn_regular():
 		_spawn_progress -= 1.0
 		if _elapsed + TIME_EPSILON >= CROW_START:
 			_spawn_enemy(_crow_pool if _spawn_mix_index == 0 else _wolf_pool)
@@ -141,9 +133,11 @@ func _physics_process(delta: float) -> void:
 		else:
 			_spawn_enemy(_wolf_pool)
 
-	while _elapsed + TIME_EPSILON >= _next_golem_at:
+	# 满员只保留一次待刷，避免腾出位置后连续补刷。
+	_spawn_progress = minf(_spawn_progress, 1.0)
+	if _elapsed + TIME_EPSILON >= _next_golem_at and _active_enemy_count < _enemy_limit(_golem_pool):
 		_spawn_enemy(_golem_pool)
-		_next_golem_at += GOLEM_INTERVAL
+		_next_golem_at += GOLEM_INTERVAL * (1 + floori((_elapsed + TIME_EPSILON - _next_golem_at) / GOLEM_INTERVAL))
 
 	if not _boss_spawned and _elapsed + TIME_EPSILON >= BOSS_START:
 		_spawn_boss()
@@ -175,7 +169,7 @@ func _connect_crow(crow: CrowDemon) -> void:
 func _connect_boss(boss: DemonLord) -> void:
 	_connect_enemy(boss, _recycle_boss)
 	boss.health_changed.connect(_hud.set_boss_health)
-	boss.flame_cast.connect(_launch_orb.bind(BOSS_FLAME_TINT))
+	boss.flame_cast.connect(_launch_orb.bind(true))
 	boss.wolves_summoned.connect(_summon_wolves)
 
 
@@ -196,55 +190,96 @@ func _connect_stone(stone: MagnetPickup) -> void:
 
 
 func _spawn_enemy(pool: ObjectPool) -> Enemy:
-	return _spawn_enemy_at(pool, _outside_screen_position())
-
-
-func _spawn_enemy_at(pool: ObjectPool, position_in_world: Vector2) -> Enemy:
+	if _active_enemy_count >= _enemy_limit(pool):
+		return null
 	var enemy := pool.acquire() as Enemy
+	return _activate_enemy(enemy, _outside_screen_position(enemy.visual_bounds()))
+
+
+func _enemy_limit(pool: ObjectPool) -> int:
+	# 开场提前给第 180 秒出现的魔尊预留一格，不抢占或回收活怪。
+	return MAX_ENEMIES if _boss_spawned or pool == _boss_pool else MAX_ENEMIES - 1
+
+
+func _can_spawn_regular() -> bool:
+	var limit := _enemy_limit(_wolf_pool)
+	if _elapsed + TIME_EPSILON >= _next_golem_at:
+		limit -= 1
+	return _active_enemy_count < limit
+
+
+func _spawn_enemy_at(pool: ObjectPool, position_in_world: Vector3) -> Enemy:
+	if _active_enemy_count >= _enemy_limit(pool):
+		return null
+	return _activate_enemy(pool.acquire() as Enemy, position_in_world)
+
+
+func _activate_enemy(enemy: Enemy, position_in_world: Vector3) -> Enemy:
 	enemy.spawn(position_in_world, _player)
 	_living_enemies.append(enemy)
+	_active_enemy_count += 1
 	return enemy
 
 
 func _spawn_boss() -> void:
-	_boss_spawned = true
 	var boss := _spawn_enemy(_boss_pool)
-	_shake_left = SHAKE_DURATION
+	if boss == null:
+		return
+	_boss_spawned = true
 	_hud.show_boss(boss.max_health)
 
 
-func _summon_wolves(origin: Vector2) -> void:
+func _summon_wolves(origin: Vector3) -> void:
 	if _phase != Phase.BATTLE:
 		return
-	for i in range(BOSS_SUMMON_COUNT):
-		var offset := Vector2.from_angle(TAU * i / BOSS_SUMMON_COUNT) * BOSS_SUMMON_RADIUS
+	var available := mini(BOSS_SUMMON_COUNT, _enemy_limit(_wolf_pool) - _active_enemy_count)
+	for i in range(available):
+		var offset := BattlePlane.direction(TAU * i / BOSS_SUMMON_COUNT) * BOSS_SUMMON_RADIUS
 		_spawn_enemy_at(_wolf_pool, origin + offset)
 
 
-func _outside_screen_position() -> Vector2:
+func _outside_screen_position(model_bounds := AABB()) -> Vector3:
 	# 按实际画面边缘刷怪，摄像机滞后或窗口比例变化时也不在屏内生成。
-	var view := get_viewport_rect()
+	var view := get_viewport().get_visible_rect()
 	var point: Vector2
+	var outward: Vector2
 	match randi_range(0, 3):
 		0:
 			point = Vector2(view.position.x - SPAWN_MARGIN, randf_range(view.position.y, view.end.y))
+			outward = Vector2.LEFT
 		1:
 			point = Vector2(view.end.x + SPAWN_MARGIN, randf_range(view.position.y, view.end.y))
+			outward = Vector2.RIGHT
 		2:
 			point = Vector2(randf_range(view.position.x, view.end.x), view.position.y - SPAWN_MARGIN)
+			outward = Vector2.UP
 		3:
 			point = Vector2(randf_range(view.position.x, view.end.x), view.end.y + SPAWN_MARGIN)
-	return get_viewport().get_canvas_transform().affine_inverse() * point
+			outward = Vector2.DOWN
+	var at := _camera.ground_at(point)
+	# 透视下脚在屏外但高模型的上半身可能还在屏内，沿同一侧向外微调。
+	var edge := point.dot(outward) - SPAWN_MARGIN
+	for i in range(4):
+		var model_is_outside := true
+		for corner in range(8):
+			var world_corner := at + model_bounds.get_endpoint(corner)
+			if not _camera.is_position_behind(world_corner) and _camera.unproject_position(world_corner).dot(outward) < edge:
+				model_is_outside = false
+				break
+		if model_is_outside:
+			break
+		at = _camera.ground_at(point + outward * (i + 1) * SPAWN_MARGIN)
+	return at
 
 
-func _launch_sword(origin: Vector2, direction: Vector2, damage: int) -> void:
+func _launch_sword(origin: Vector3, direction: Vector3, damage: int) -> void:
 	var sword := _sword_pool.acquire() as FlyingSword
 	sword.launch(origin, direction, damage)
 
 
-func _launch_orb(origin: Vector2, direction: Vector2, damage: int, tint := MagicOrb.DEFAULT_TINT) -> void:
+func _launch_orb(origin: Vector3, direction: Vector3, damage: int, boss_flame := false) -> void:
 	var orb := _orb_pool.acquire() as MagicOrb
-	orb.launch(origin, direction, damage, _player, tint)
+	orb.launch(origin, direction, damage, _player, boss_flame)
 
 
 func _on_enemy_died(enemy: Enemy) -> void:
@@ -259,9 +294,9 @@ func _on_enemy_died(enemy: Enemy) -> void:
 		return
 	for i in range(enemy.crystal_count):
 		# 多颗灵晶稍微错开；沿用靠近后才磁吸的规则。
-		var offset := Vector2.ZERO
+		var offset := Vector3.ZERO
 		if i > 0:
-			offset = Vector2.from_angle(TAU * (i - 1) / (enemy.crystal_count - 1)) * 21.0
+			offset = BattlePlane.direction(TAU * (i - 1) / (enemy.crystal_count - 1)) * 21.0
 		var crystal := _crystal_pool.acquire() as MagnetPickup
 		crystal.drop(enemy.global_position + offset, _player)
 
@@ -272,25 +307,29 @@ func _drop_spirit_stone(enemy: Enemy) -> void:
 	if enemy.stone_drop_chance < 1.0 and randf() >= enemy.stone_drop_chance:
 		return
 	# 普通怪的两种掉落错开放置，魔尊的灵石则落在死亡位置。
-	var offset := STONE_DROP_OFFSET if enemy.crystal_count > 0 else Vector2.ZERO
+	var offset := STONE_DROP_OFFSET if enemy.crystal_count > 0 else Vector3.ZERO
 	var stone := _stone_pool.acquire() as MagnetPickup
 	stone.drop(enemy.global_position + offset, _player, _player.stats.stone_amount(enemy.stone_drop_amount))
 
 
 func _recycle_wolf(enemy: Enemy) -> void:
 	_wolf_pool.release(enemy)
+	_active_enemy_count -= 1
 
 
 func _recycle_crow(enemy: Enemy) -> void:
 	_crow_pool.release(enemy)
+	_active_enemy_count -= 1
 
 
 func _recycle_golem(enemy: Enemy) -> void:
 	_golem_pool.release(enemy)
+	_active_enemy_count -= 1
 
 
 func _recycle_boss(enemy: Enemy) -> void:
 	_boss_pool.release(enemy)
+	_active_enemy_count -= 1
 
 
 func _recycle_orb(orb: MagicOrb) -> void:
@@ -396,27 +435,6 @@ func _on_player_died() -> void:
 		_show_result(false)
 
 
-func _on_player_hit() -> void:
-	_audio.play_cue(BattleAudio.Cue.HIT)
-	if _hit_shake != null:
-		_hit_shake.kill()
-	_hit_shake = create_tween()
-	if not _player.is_alive():
-		_hit_shake.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
-	_set_hit_shake(0.0)
-	_hit_shake.tween_method(_set_hit_shake, 0.0, 1.0, HIT_SHAKE_DURATION)
-
-
-func _set_hit_shake(progress: float) -> void:
-	var t := progress * HIT_SHAKE_DURATION
-	_hit_shake_offset = Vector2(sin(t * 137.0), cos(t * 149.0)) * (6.0 * (1.0 - progress))
-	_update_camera_shake()
-
-
-func _update_camera_shake() -> void:
-	_camera.offset = _boss_shake_offset + _hit_shake_offset
-
-
 func _begin_victory() -> void:
 	# 魔尊一死就锁定胜利与统计，慢动作期间不能再受伤或触发升级。
 	_phase = Phase.VICTORY_SLOW
@@ -441,9 +459,6 @@ func _exit_tree() -> void:
 
 func _show_result(won: bool) -> void:
 	_phase = Phase.RESULT
-	_shake_left = 0.0
-	_boss_shake_offset = Vector2.ZERO
-	_update_camera_shake()
 	_joystick.reset()
 	_upgrade_menu.hide()
 	_shop_menu.hide()
@@ -472,27 +487,3 @@ func _realm_name() -> String:
 	if _level >= 5:
 		return "筑基"
 	return "炼气"
-
-
-func _update_grid_bounds() -> void:
-	# 网格固定在世界坐标中，只绘制镜头可见范围和一格余量。
-	var half_view := get_viewport_rect().size * 0.5
-	var center := _camera.get_screen_center_position()
-	var start := Vector2i(((center - half_view) / GRID_SIZE).floor()) - Vector2i.ONE
-	var end := Vector2i(((center + half_view) / GRID_SIZE).ceil()) + Vector2i.ONE
-	var bounds := Rect2i(start, end - start)
-
-	if bounds != _grid_bounds:
-		_grid_bounds = bounds
-		queue_redraw()
-
-
-func _draw() -> void:
-	var start := _grid_bounds.position * GRID_SIZE
-	var end := _grid_bounds.end * GRID_SIZE
-	draw_rect(Rect2(Vector2(start), Vector2(end - start)), GROUND_COLOR)
-
-	for x in range(start.x, end.x + 1, GRID_SIZE):
-		draw_line(Vector2(x, start.y), Vector2(x, end.y), GRID_COLOR, 2.0)
-	for y in range(start.y, end.y + 1, GRID_SIZE):
-		draw_line(Vector2(start.x, y), Vector2(end.x, y), GRID_COLOR, 2.0)

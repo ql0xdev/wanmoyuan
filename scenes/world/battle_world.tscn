@@ -1,0 +1,48 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scenes/world/battle_ground.gd" id="1_ground"]
+[ext_resource type="Shader" path="res://scenes/world/ground.gdshader" id="2_grid"]
+
+[sub_resource type="Environment" id="Environment_battle"]
+background_mode = 1
+background_color = Color(0.13, 0.18, 0.17, 1)
+ambient_light_source = 3
+ambient_light_color = Color(0.85, 0.94, 0.93, 1)
+ambient_light_energy = 0.4
+reflected_light_source = 2
+fog_enabled = true
+fog_mode = 1
+fog_light_color = Color(0.13, 0.18, 0.17, 1)
+fog_density = 0.8
+fog_depth_begin = 1750.0
+fog_depth_end = 3450.0
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_grid"]
+shader = ExtResource("2_grid")
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
+material = SubResource("ShaderMaterial_grid")
+size = Vector2(9216, 9216)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_rock"]
+albedo_color = Color(0.22, 0.25, 0.24, 1)
+roughness = 1.0
+
+[node name="BattleWorld" type="Node3D"]
+script = ExtResource("1_ground")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_battle")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+rotation = Vector3(-0.7853982, -0.55, 0)
+light_color = Color(0.96, 0.98, 1, 1)
+light_energy = 0.95
+
+[node name="Plane" type="MeshInstance3D" parent="."]
+cast_shadow = 0
+mesh = SubResource("PlaneMesh_ground")
+
+[node name="Rocks" type="MultiMeshInstance3D" parent="."]
+cast_shadow = 0
+material_override = SubResource("StandardMaterial3D_rock")
