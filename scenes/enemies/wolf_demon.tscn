@@ -10,6 +10,8 @@ collision_layer = 0
 collision_mask = 0
 motion_mode = 1
 script = ExtResource("1_wolf")
+stone_drop_amount = 5
+stone_drop_chance = 0.1
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape2D_wolf")

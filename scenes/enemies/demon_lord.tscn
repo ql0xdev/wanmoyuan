@@ -15,6 +15,7 @@ move_speed = 80.0
 damage = 30
 body_radius = 42.0
 crystal_count = 0
+stone_drop_amount = 200
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape2D_boss")

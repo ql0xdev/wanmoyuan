@@ -15,6 +15,7 @@ move_speed = 60.0
 damage = 20
 body_radius = 32.0
 crystal_count = 5
+stone_drop_amount = 30
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape2D_golem")

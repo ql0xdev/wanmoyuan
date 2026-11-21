@@ -5,7 +5,9 @@ extends Control
 @onready var _xp_label: Label = $Top/Margin/Rows/Experience/Value
 @onready var _health_bar: ProgressBar = $Health
 @onready var _health_label: Label = $Health/Value
-@onready var _time_label: Label = $SurvivalTime
+@onready var _time_label: Label = $BattleCounters/SurvivalTime
+@onready var _stone_label: Label = $BattleCounters/SpiritStones/Amount
+@onready var shop_button: Button = $BattleCounters/ShopButton
 @onready var _boss_bar: ProgressBar = $BossHealth
 @onready var _boss_label: Label = $BossHealth/Value
 @onready var _boss_notice: Label = $BossNotice
@@ -30,6 +32,10 @@ func set_health(current: int, maximum: int) -> void:
 
 func set_survival_time(seconds: int) -> void:
 	_time_label.text = "%02d:%02d" % [seconds / 60.0, seconds % 60]
+
+
+func set_spirit_stones(amount: int) -> void:
+	_stone_label.text = str(amount)
 
 
 func show_boss(maximum: int) -> void:

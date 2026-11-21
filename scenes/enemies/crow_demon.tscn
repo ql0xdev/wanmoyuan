@@ -13,6 +13,8 @@ script = ExtResource("1_crow")
 max_health = 12
 move_speed = 90.0
 damage = 8
+stone_drop_amount = 8
+stone_drop_chance = 0.2
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape2D_crow")

@@ -1,0 +1,116 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scenes/ui/shop_menu.gd" id="1_shop"]
+[ext_resource type="Theme" path="res://scenes/ui/menu_theme.tres" id="2_theme"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.08, 0.13, 0.14, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.30, 0.46, 0.43, 1)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_left = 16
+corner_radius_bottom_right = 16
+
+[node name="ShopMenu" type="Control"]
+process_mode = 3
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("2_theme")
+script = ExtResource("1_shop")
+
+[node name="Shade" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+color = Color(0.015, 0.025, 0.028, 0.88)
+
+[node name="Panel" type="PanelContainer" parent="."]
+layout_mode = 1
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 18.0
+offset_top = 14.0
+offset_right = -18.0
+offset_bottom = -14.0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="Margin" type="MarginContainer" parent="Panel"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 12
+
+[node name="Content" type="VBoxContainer" parent="Panel/Margin"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="Header" type="HBoxContainer" parent="Panel/Margin/Content"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="Panel/Margin/Content/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 30
+text = "法宝商店"
+
+[node name="Balance" type="Label" parent="Panel/Margin/Content/Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.84, 0.44, 1)
+theme_override_font_sizes/font_size = 25
+
+[node name="Close" type="Button" parent="Panel/Margin/Content/Header"]
+custom_minimum_size = Vector2(106, 52)
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 24
+text = "关闭"
+
+[node name="Products" type="ScrollContainer" parent="Panel/Margin/Content"]
+custom_minimum_size = Vector2(0, 76)
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+scroll_deadzone = 10
+
+[node name="List" type="VBoxContainer" parent="Panel/Margin/Content/Products"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="InventoryTitle" type="Label" parent="Panel/Margin/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 23
+text = "法宝栏"
+
+[node name="Slots" type="GridContainer" parent="Panel/Margin/Content"]
+layout_mode = 2
+mouse_filter = 2
+columns = 3
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
+
+[node name="Status" type="Label" parent="Panel/Margin/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.84, 0.44, 1)
+theme_override_font_sizes/font_size = 21
+text = " "
+
+[connection signal="pressed" from="Panel/Margin/Content/Header/Close" to="." method="_close"]

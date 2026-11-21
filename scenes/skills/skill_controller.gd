@@ -3,6 +3,9 @@ extends Node2D
 const Player = preload("res://scenes/player.gd")
 const Enemy = preload("res://scenes/enemies/enemy.gd")
 
+signal swords_cast
+signal lightning_cast
+
 enum Skill { SWORD, LIGHTNING, ORBS, ICE, HEAL, MAX_HEALTH }
 
 const SKILL_NAMES := ["御剑术", "雷诀", "护体罡气", "冰心咒", "回春功"]
@@ -92,14 +95,16 @@ func apply_upgrade(skill: int) -> void:
 func _physics_process(delta: float) -> void:
 	var redraw := _flash_left > 0.0
 	_flash_left = maxf(0.0, _flash_left - delta)
-	_sword_left -= delta
+	# 用基础冷却时间记录进度，换装后当前这轮也会按新速度推进。
+	var cooldown_step := delta / _player.stats.cooldown_multiplier
+	_sword_left -= cooldown_step
 	if _sword_left <= 0.0:
 		_sword_left += SWORD_INTERVAL
 		_cast_swords(_levels[Skill.SWORD])
 
 	var lightning_level := _levels[Skill.LIGHTNING]
 	if lightning_level > 0:
-		_lightning_left -= delta
+		_lightning_left -= cooldown_step
 		if _lightning_left <= 0.0:
 			_lightning_left += LIGHTNING_INTERVAL
 			_cast_lightning(lightning_level)
@@ -117,7 +122,7 @@ func _physics_process(delta: float) -> void:
 
 	var heal_level := _levels[Skill.HEAL]
 	if heal_level > 0:
-		_heal_left -= delta
+		_heal_left -= cooldown_step
 		if _heal_left <= 0.0:
 			_heal_left += HEAL_INTERVAL[heal_level - 1]
 			_player.heal(HEAL_AMOUNT[heal_level - 1])
@@ -140,11 +145,14 @@ func _cast_swords(level: int) -> void:
 			nearest_distance = distance
 	var target := nearest.global_position
 	var direction := origin.direction_to(target)
+	var count := level + _player.stats.sword_count
+	var damage := _player.stats.damage(SWORD_DAMAGE[level - 1])
 	# 多把剑错开出剑位置，但仍瞄准同一个最近的敌人。
-	for i in range(level):
-		var lateral := (float(i) - (level - 1) * 0.5) * 18.0
+	for i in range(count):
+		var lateral := (float(i) - (count - 1) * 0.5) * 18.0
 		var start := origin + direction.orthogonal() * lateral - direction * (i * 22.0)
-		_launch_sword.call(start, start.direction_to(target), SWORD_DAMAGE[level - 1])
+		_launch_sword.call(start, start.direction_to(target), damage)
+	swords_cast.emit()
 
 
 func _cast_lightning(level: int) -> void:
@@ -155,9 +163,10 @@ func _cast_lightning(level: int) -> void:
 		if view.has_point(canvas * enemy.global_position):
 			candidates.append(enemy.global_position)
 	var to_world := canvas.affine_inverse()
+	var damage := _player.stats.damage(LIGHTNING_DAMAGE[level - 1])
 	_lightning_points.clear()
 	# 随机选屏内敌人落雷；可用目标不足时，余下的雷随机落在屏内。
-	for i in range(level):
+	for i in range(level + _player.stats.lightning_count):
 		var point: Vector2
 		if not candidates.is_empty():
 			var index := randi_range(0, candidates.size() - 1)
@@ -170,8 +179,9 @@ func _cast_lightning(level: int) -> void:
 		for j in range(_enemies.size() - 1, -1, -1):
 			var enemy := _enemies[j]
 			if point.distance_squared_to(enemy.global_position) <= LIGHTNING_RADIUS * LIGHTNING_RADIUS:
-				enemy.take_damage(LIGHTNING_DAMAGE[level - 1])
+				enemy.take_damage(damage)
 	_flash_left = LIGHTNING_FLASH_TIME
+	lightning_cast.emit()
 
 
 func _update_orbs(delta: float, level: int) -> void:
@@ -182,6 +192,7 @@ func _update_orbs(delta: float, level: int) -> void:
 		_orb_offsets[i] = Vector2.from_angle(_orbit_angle + TAU * i / count) * ORBIT_RADIUS
 
 	var origin := _player.global_position
+	var damage_per_orb := _player.stats.damage(ORB_DAMAGE[level - 1])
 	_next_contacts.clear()
 	for i in range(_enemies.size() - 1, -1, -1):
 		var enemy := _enemies[i]
@@ -203,7 +214,7 @@ func _update_orbs(delta: float, level: int) -> void:
 		var new_hits: int = mask & ~_orb_contacts.get(id, 0)
 		var damage := 0
 		while new_hits != 0:
-			damage += ORB_DAMAGE[level - 1]
+			damage += damage_per_orb
 			new_hits &= new_hits - 1
 		if damage > 0:
 			enemy.take_damage(damage)

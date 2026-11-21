@@ -1,19 +1,22 @@
 extends Node2D
 
-signal collected(crystal: Node2D)
+const Player = preload("res://scenes/player.gd")
+
+signal collected(pickup: Node2D)
 
 const PICKUP_RADIUS := 16.0
-const MAGNET_RADIUS := 80.0
 const MAGNET_DURATION := 0.35
 
-var _target: Node2D
+var amount := 1
+var _target: Player
 var _drop_position := Vector2.ZERO
 var _magnet_elapsed := 0.0
 var _magnet_active := false
 
 
-func drop(at: Vector2, target: Node2D) -> void:
+func drop(at: Vector2, target: Player, value := 1) -> void:
 	global_position = at
+	amount = value
 	_target = target
 	_drop_position = at
 	_magnet_elapsed = 0.0
@@ -27,7 +30,8 @@ func _physics_process(delta: float) -> void:
 	var target_position := _target.global_position
 	if not _magnet_active:
 		# 触发磁吸前始终停在掉落点，不随玩家移动，也不按掉落时长触发。
-		if _drop_position.distance_squared_to(target_position) > MAGNET_RADIUS * MAGNET_RADIUS:
+		var radius := _target.stats.magnet_radius
+		if _drop_position.distance_squared_to(target_position) > radius * radius:
 			return
 		_magnet_active = true
 
