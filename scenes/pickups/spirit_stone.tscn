@@ -11,6 +11,7 @@ emission_energy_multiplier = 0.72
 
 [node name="SpiritStone" type="Node3D"]
 script = ExtResource("1_pickup")
+use_crystal_magnet_bonus = false
 
 [node name="Stone" type="MeshInstance3D" parent="."]
 position = Vector3(0, 13, 0)

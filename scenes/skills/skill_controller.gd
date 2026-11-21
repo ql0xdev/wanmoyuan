@@ -5,13 +5,12 @@ const Enemy = preload("res://scenes/enemies/enemy.gd")
 const BattlePlane = preload("res://scripts/battle_plane.gd")
 const BattleCamera = preload("res://scenes/world/battle_camera.gd")
 const SkillVisuals = preload("res://scenes/skills/skill_visuals.gd")
+const Catalog = preload("res://scripts/cultivation_catalog.gd")
+const Skill = Catalog.Skill
 
 signal swords_cast
 signal lightning_cast
 
-enum Skill { SWORD, LIGHTNING, ORBS, ICE, HEAL, MAX_HEALTH }
-
-const SKILL_NAMES := ["御剑术", "雷诀", "护体罡气", "冰心咒", "回春功"]
 const SWORD_DAMAGE := [10, 15, 20]
 const LIGHTNING_DAMAGE := [15, 22, 30]
 const ORB_DAMAGE := [8, 12, 16]
@@ -29,10 +28,20 @@ const ORBIT_RADIUS := 72.0
 const ORBIT_SPEED := 2.4
 const ORB_RADIUS := 11.0
 const ICE_RADIUS := 200.0
+const STORM_INTERVAL := 5.0
+const STORM_SWORDS := 8
+const STORM_DAMAGE := [15, 22, 30]
+const FIRE_INTERVAL := 4.0
+const FIRE_RADIUS := 92.0
+const FIRE_DURATION := 3
+const FIRE_DAMAGE := [12, 17, 23]
+const BLINK_DISTANCE := 300.0
+const BLINK_CHANCE_PERCENT := [10, 15, 20]
 
 @onready var _visuals: SkillVisuals = $Visuals
 
-var _levels: Array[int] = [1, 0, 0, 0, 0]
+var _levels: Array[int] = []
+var _selected: Array[int] = []
 var _player: Player
 var _camera: BattleCamera
 var _enemies: Array[Enemy]
@@ -46,19 +55,33 @@ var _orbit_angle := 0.0
 var _orb_offsets := PackedVector3Array()
 var _orb_contacts: Dictionary[int, int] = {}
 var _next_contacts: Dictionary[int, int] = {}
+var _storm_left := STORM_INTERVAL
+var _fire_left := FIRE_INTERVAL
+var _fire_zones: Array[Dictionary] = []
+var _fire_mesh: CylinderMesh
 
 
-func configure(player: Player, enemies: Array[Enemy], launch_sword: Callable, camera: BattleCamera) -> void:
+func configure(player: Player, enemies: Array[Enemy], launch_sword: Callable, camera: BattleCamera, loadout: Array) -> void:
 	_player = player
 	_enemies = enemies
 	_launch_sword = launch_sword
 	_camera = camera
-	_visuals.setup(ORB_RADIUS, ICE_RADIUS, LIGHTNING_RADIUS, CAP + 2, CAP + 1)
+	_levels.resize(Catalog.SKILLS.size())
+	_levels.fill(0)
+	_selected.clear()
+	for id: String in loadout:
+		_selected.append(Catalog.SKILLS.find(id))
+	var first := Catalog.SKILLS.find(Catalog.first_attack(loadout))
+	if first >= 0:
+		_levels[first] = 1
+	_visuals.setup(ORB_RADIUS, ICE_RADIUS, LIGHTNING_RADIUS, CAP + 2, CAP)
+	if _selected.has(Skill.BLINK):
+		_player.hit.connect(_try_blink)
 
 
 func roll_choices() -> Array[int]:
 	var available: Array[int] = []
-	for skill in range(_levels.size()):
+	for skill in _selected:
 		if _levels[skill] < CAP:
 			available.append(skill)
 	if available.is_empty():
@@ -85,15 +108,21 @@ func card_text(skill: int) -> String:
 			effect = "范围 %d 像素\n敌人减速 %d%%" % [int(ICE_RADIUS), ICE_SLOW_PERCENT[tier]]
 		Skill.HEAL:
 			effect = "每 %d 秒\n回复 %d 生命" % [int(HEAL_INTERVAL[tier]), HEAL_AMOUNT[tier]]
+		Skill.SWORD_STORM:
+			effect = "每 5 秒齐射 8 剑\n每剑 %d 伤害" % STORM_DAMAGE[tier]
+		Skill.FIRE:
+			effect = "每 4 秒生火 3 秒\n每秒 %d 伤害" % FIRE_DAMAGE[tier]
+		Skill.BLINK:
+			effect = "受击时 %d%%\n概率瞬移 300" % BLINK_CHANCE_PERCENT[tier]
 	var action := "习得" if next_level == 1 else "升级"
-	return "%s · %s\nLv%d\n\n%s" % [action, SKILL_NAMES[skill], next_level, effect]
+	return "%s · %s\nLv%d\n\n%s" % [action, Catalog.SKILL_DATA[Catalog.SKILLS[skill]].name, next_level, effect]
 
 
 func apply_upgrade(skill: int) -> void:
 	if skill == Skill.MAX_HEALTH:
 		_player.increase_max_health(HEALTH_BONUS)
 		return
-	if _levels[skill] >= CAP:
+	if not _selected.has(skill) or _levels[skill] >= CAP:
 		return
 	_levels[skill] += 1
 	if skill == Skill.HEAL:
@@ -101,15 +130,19 @@ func apply_upgrade(skill: int) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if _player == null or not _player.is_alive():
+		return
 	if _flash_left > 0.0:
 		_flash_left = maxf(0.0, _flash_left - delta)
 		_visuals.update_lightning(_flash_left / LIGHTNING_FLASH_TIME)
 	# 用基础冷却时间记录进度，换装后当前这轮也会按新速度推进。
 	var cooldown_step := delta / _player.stats.cooldown_multiplier
-	_sword_left -= cooldown_step
-	if _sword_left <= 0.0:
-		_sword_left += SWORD_INTERVAL
-		_cast_swords(_levels[Skill.SWORD])
+	var sword_level := _levels[Skill.SWORD]
+	if sword_level > 0:
+		_sword_left -= cooldown_step
+		if _sword_left <= 0.0:
+			_sword_left += SWORD_INTERVAL
+			_cast_swords(sword_level)
 
 	var lightning_level := _levels[Skill.LIGHTNING]
 	if lightning_level > 0:
@@ -139,6 +172,21 @@ func _physics_process(delta: float) -> void:
 				_visuals.show_heal()
 		_visuals.update_heal(_player.global_position, delta)
 
+	var storm_level := _levels[Skill.SWORD_STORM]
+	if storm_level > 0:
+		_storm_left -= cooldown_step
+		if _storm_left <= 0.0:
+			_storm_left += STORM_INTERVAL
+			_cast_storm(storm_level)
+
+	var fire_level := _levels[Skill.FIRE]
+	if fire_level > 0:
+		_update_fire(delta, fire_level)
+		_fire_left -= cooldown_step
+		if _fire_left <= 0.0:
+			_fire_left += FIRE_INTERVAL
+			_cast_fire()
+
 
 func _cast_swords(level: int) -> void:
 	if _enemies.is_empty():
@@ -154,7 +202,7 @@ func _cast_swords(level: int) -> void:
 			nearest_distance = distance
 	var target := nearest.global_position
 	var direction := origin.direction_to(target)
-	var count := level + _player.stats.sword_count
+	var count := level
 	var damage := _player.stats.damage(SWORD_DAMAGE[level - 1])
 	# 多把剑错开出剑位置，但仍瞄准同一个最近的敌人。
 	for i in range(count):
@@ -173,7 +221,7 @@ func _cast_lightning(level: int) -> void:
 	var damage := _player.stats.damage(LIGHTNING_DAMAGE[level - 1])
 	_lightning_points.clear()
 	# 随机选屏内敌人落雷；可用目标不足时，余下的雷随机落在屏内。
-	for i in range(level + _player.stats.lightning_count):
+	for i in range(level):
 		var point: Vector3
 		if not candidates.is_empty():
 			var index := randi_range(0, candidates.size() - 1)
@@ -238,3 +286,57 @@ func _update_ice(level: int) -> void:
 	for enemy in _enemies:
 		var inside := origin.distance_squared_to(enemy.global_position) <= ICE_RADIUS * ICE_RADIUS
 		enemy.speed_multiplier = slowed_speed if inside else 1.0
+
+
+func _cast_storm(level: int) -> void:
+	var origin := _player.global_position
+	var damage := _player.stats.damage(STORM_DAMAGE[level - 1])
+	for i in range(STORM_SWORDS):
+		_launch_sword.call(origin, BattlePlane.direction(TAU * i / STORM_SWORDS), damage)
+	swords_cast.emit()
+
+
+func _cast_fire() -> void:
+	if _enemies.is_empty():
+		return
+	if _fire_mesh == null:
+		_fire_mesh = CylinderMesh.new()
+		_fire_mesh.top_radius = FIRE_RADIUS
+		_fire_mesh.bottom_radius = FIRE_RADIUS
+		_fire_mesh.height = 0.8
+		_fire_mesh.radial_segments = 32
+		var material := StandardMaterial3D.new()
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		material.albedo_color = Color("#ff7b38")
+		material.albedo_color.a = 0.38
+		_fire_mesh.material = material
+	var target := _enemies[randi_range(0, _enemies.size() - 1)].global_position
+	var visual := MeshInstance3D.new()
+	visual.mesh = _fire_mesh
+	visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(visual)
+	visual.global_position = target + Vector3.UP
+	_fire_zones.append({"center": target, "visual": visual, "seconds": 0.0, "ticks": 0})
+
+
+func _update_fire(delta: float, level: int) -> void:
+	for i in range(_fire_zones.size() - 1, -1, -1):
+		var zone := _fire_zones[i]
+		zone.seconds += delta
+		while zone.ticks < FIRE_DURATION and zone.seconds + 0.000001 >= zone.ticks + 1:
+			zone.ticks += 1
+			var damage := _player.stats.damage(FIRE_DAMAGE[level - 1])
+			for j in range(_enemies.size() - 1, -1, -1):
+				var enemy := _enemies[j]
+				if enemy.global_position.distance_squared_to(zone.center) <= FIRE_RADIUS * FIRE_RADIUS:
+					enemy.take_damage(damage)
+		if zone.ticks == FIRE_DURATION:
+			zone.visual.queue_free()
+			_fire_zones.remove_at(i)
+
+
+func _try_blink() -> void:
+	var level := _levels[Skill.BLINK]
+	if level > 0 and _player.is_alive() and randf() < BLINK_CHANCE_PERCENT[level - 1] / 100.0:
+		_player.blink(BLINK_DISTANCE)

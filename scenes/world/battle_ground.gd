@@ -53,3 +53,17 @@ func follow(focus: Vector3) -> void:
 			var obstacle := collider.get_parent() as StaticBody3D
 			obstacle.transform = Transform3D(axes, center)
 			i += 1
+
+
+func set_abyss_tint(tint: Color) -> void:
+	if tint == Color.WHITE:
+		return
+	var material := _plane.mesh.surface_get_material(0).duplicate() as ShaderMaterial
+	var light_tint := Color.WHITE.lerp(tint, 0.55)
+	material.set_shader_parameter("abyss_tint", Vector3(light_tint.r, light_tint.g, light_tint.b))
+	_plane.material_override = material
+	var world: WorldEnvironment = $WorldEnvironment
+	var atmosphere := world.environment.duplicate() as Environment
+	atmosphere.background_color = atmosphere.background_color.lerp(tint.darkened(0.72), 0.45)
+	atmosphere.fog_light_color = atmosphere.background_color
+	world.environment = atmosphere

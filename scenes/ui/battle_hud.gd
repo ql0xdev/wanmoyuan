@@ -1,6 +1,6 @@
 extends Control
 
-@onready var _realm_label: Label = $Top/Margin/Rows/Realm
+@onready var _realm_label: Label = $Top/Margin/Rows/Heading/Realm
 @onready var _xp_bar: ProgressBar = $Top/Margin/Rows/Experience
 @onready var _xp_label: Label = $Top/Margin/Rows/Experience/Value
 @onready var _health_bar: ProgressBar = $Health
@@ -8,17 +8,19 @@ extends Control
 @onready var _time_label: Label = $BattleCounters/SurvivalTime
 @onready var _stone_label: Label = $BattleCounters/SpiritStones/Amount
 @onready var shop_button: Button = $BattleCounters/ShopButton
+@onready var bag_button: Button = $BattleCounters/BagButton
+@onready var menu_button: Button = $Top/Margin/Rows/Heading/MenuButton
 @onready var _boss_bar: ProgressBar = $BossHealth
 @onready var _boss_label: Label = $BossHealth/Value
 @onready var _boss_notice: Label = $BossNotice
-@onready var _flash: ColorRect = $BreakthroughFlash
-@onready var _notice: Label = $BreakthroughNotice
+@onready var _loot_notice: Label = $LootNotice
 
-var _breakthrough_tween: Tween
+var _boss_name := ""
+var _loot_tween: Tween
 
 
-func set_progress(level: int, realm: String, xp: int, required: int) -> void:
-	_realm_label.text = "%s · Lv%d" % [realm, level]
+func set_progress(level: int, abyss: String, realm: String, xp: int, required: int) -> void:
+	_realm_label.text = "%s · %s · Lv%d" % [abyss, realm, level]
 	_xp_bar.max_value = required
 	_xp_bar.value = xp
 	_xp_label.text = "%d / %d" % [mini(xp, required), required]
@@ -38,11 +40,13 @@ func set_spirit_stones(amount: int) -> void:
 	_stone_label.text = str(amount)
 
 
-func show_boss(maximum: int) -> void:
+func show_boss(boss_name: String, maximum: int) -> void:
+	_boss_name = boss_name
 	_boss_bar.max_value = maximum
 	set_boss_health(maximum)
 	_boss_bar.show()
 	_boss_notice.modulate.a = 1.0
+	_boss_notice.text = boss_name + " 现世"
 	_boss_notice.show()
 	var tween := create_tween()
 	tween.tween_property(_boss_notice, "modulate:a", 0.0, 0.35).set_delay(1.6)
@@ -51,23 +55,15 @@ func show_boss(maximum: int) -> void:
 
 func set_boss_health(current: int) -> void:
 	_boss_bar.value = current
-	_boss_label.text = "魔尊  %d / %d" % [current, int(_boss_bar.max_value)]
+	_boss_label.text = "%s  %d / %d" % [_boss_name, current, int(_boss_bar.max_value)]
 
 
-func show_breakthrough(realm: String) -> void:
-	if _breakthrough_tween != null:
-		_breakthrough_tween.kill()
-	_flash.modulate.a = 1.0
-	_notice.modulate.a = 1.0
-	_notice.text = "突破·%s" % realm
-	_flash.show()
-	_notice.show()
-	_breakthrough_tween = create_tween().set_parallel()
-	_breakthrough_tween.tween_property(_flash, "modulate:a", 0.0, 0.45)
-	_breakthrough_tween.tween_property(_notice, "modulate:a", 0.0, 0.4).set_delay(0.85)
-	_breakthrough_tween.chain().tween_callback(_hide_breakthrough)
-
-
-func _hide_breakthrough() -> void:
-	_flash.hide()
-	_notice.hide()
+func show_loot(message: String, color: Color) -> void:
+	if _loot_tween != null:
+		_loot_tween.kill()
+	_loot_notice.text = message
+	_loot_notice.modulate = color
+	_loot_notice.show()
+	_loot_tween = create_tween()
+	_loot_tween.tween_property(_loot_notice, "modulate:a", 0.0, 0.28).set_delay(1.8)
+	_loot_tween.tween_callback(_loot_notice.hide)

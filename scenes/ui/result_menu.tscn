@@ -69,9 +69,34 @@ theme_override_constants/line_spacing = 12
 theme_override_font_sizes/font_size = 27
 horizontal_alignment = 1
 
+[node name="Settlement" type="Label" parent="Center/Panel/Margin/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 27
+horizontal_alignment = 1
+
+[node name="Retry" type="Button" parent="Center/Panel/Margin/Content"]
+visible = false
+custom_minimum_size = Vector2(0, 72)
+layout_mode = 2
+text = "重试保存"
+
+[node name="Organize" type="Button" parent="Center/Panel/Margin/Content"]
+visible = false
+custom_minimum_size = Vector2(0, 72)
+layout_mode = 2
+text = "整理战利品"
+
 [node name="Restart" type="Button" parent="Center/Panel/Margin/Content"]
 custom_minimum_size = Vector2(0, 72)
 layout_mode = 2
 text = "再来一局"
 
+[node name="Cave" type="Button" parent="Center/Panel/Margin/Content"]
+custom_minimum_size = Vector2(0, 72)
+layout_mode = 2
+text = "返回洞府"
+
 [connection signal="pressed" from="Center/Panel/Margin/Content/Restart" to="." method="_on_restart_pressed"]
+[connection signal="pressed" from="Center/Panel/Margin/Content/Cave" to="." method="_on_cave_pressed"]
+[connection signal="pressed" from="Center/Panel/Margin/Content/Retry" to="." method="_on_retry_pressed"]
+[connection signal="pressed" from="Center/Panel/Margin/Content/Organize" to="." method="_on_organize_pressed"]

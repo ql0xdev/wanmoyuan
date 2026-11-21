@@ -21,6 +21,9 @@ const DEATH_DURATION := 0.20
 @export var crystal_count := 1
 @export var stone_drop_amount := 0
 @export_range(0.0, 1.0) var stone_drop_chance := 1.0
+@export var equipment_count := 1
+@export_range(0.0, 1.0) var equipment_chance := 0.01
+@export_range(0.0, 1.0) var purple_chance := 0.03
 
 @onready var _body: MeshInstance3D = $Body
 @onready var _base_scale := _body.scale
@@ -30,6 +33,34 @@ const DEATH_DURATION := 0.20
 var speed_multiplier := 1.0
 var _health := 0
 var _target: Player
+
+
+func apply_difficulty(health_multiplier: float, damage_multiplier: float, size_multiplier: float,
+		tint: Color, visual_cache: Dictionary, shape_cache: Dictionary) -> void:
+	max_health = roundi(max_health * health_multiplier)
+	damage = roundi(damage * damage_multiplier)
+	if is_equal_approx(size_multiplier, 1.0):
+		return
+	body_radius *= size_multiplier
+	var collider: CollisionShape3D = $CollisionShape3D
+	var original := collider.shape
+	if not shape_cache.has(original):
+		var shape := original.duplicate() as CylinderShape3D
+		shape.radius = body_radius
+		shape_cache[original] = shape
+	collider.shape = shape_cache[original]
+	if not visual_cache.has(_base_material):
+		var material := _base_material.duplicate() as StandardMaterial3D
+		material.albedo_color = material.albedo_color.lerp(tint, 0.65)
+		if material.emission_enabled:
+			material.emission = tint * 0.42
+		visual_cache[_base_material] = material
+	_base_material = visual_cache[_base_material]
+	_body.material_override = _base_material
+	_body.position *= size_multiplier
+	_base_scale *= size_multiplier
+	_body.scale = _base_scale
+	_visual_bounds = _body.transform * _body.get_aabb()
 
 
 func visual_bounds() -> AABB:

@@ -1,7 +1,7 @@
 extends Control
 
 signal direction_changed(direction: Vector2)
-signal reserved_button_tapped
+signal reserved_button_tapped(button: Control)
 
 const BASE_RADIUS := 48.0
 const KNOB_RADIUS := 18.0
@@ -12,7 +12,8 @@ var _button_finger := -1
 var _touch_origin := Vector2.ZERO
 var _knob_offset := Vector2.ZERO
 var _direction := Vector2.ZERO
-var reserved_button: Control
+var reserved_buttons: Array[Control] = []
+var _touch_button: Control
 
 
 func _ready() -> void:
@@ -25,13 +26,17 @@ func _input(event: InputEvent) -> void:
 		if event.index == _button_finger:
 			if not event.pressed or event.canceled:
 				_button_finger = -1
-				if not event.canceled and _over_reserved_button(event.position):
-					reserved_button_tapped.emit()
+				var tapped := _touch_button
+				_touch_button = null
+				if not event.canceled and tapped == _button_at(event.position):
+					reserved_button_tapped.emit(tapped)
 			get_viewport().set_input_as_handled()
 			return
-		if event.pressed and not event.canceled and _over_reserved_button(event.position):
+		var button := _button_at(event.position) if event.pressed and not event.canceled else null
+		if button != null:
 			if _button_finger == -1:
 				_button_finger = event.index
+				_touch_button = button
 			get_viewport().set_input_as_handled()
 			return
 		if event.index == _finger_index and (not event.pressed or event.canceled):
@@ -62,11 +67,14 @@ func _input(event: InputEvent) -> void:
 	get_viewport().set_input_as_handled()
 
 
-func _over_reserved_button(point: Vector2) -> bool:
-	if reserved_button == null or not reserved_button.is_visible_in_tree():
-		return false
-	var button_position := reserved_button.get_global_transform_with_canvas().affine_inverse() * point
-	return Rect2(Vector2.ZERO, reserved_button.size).has_point(button_position)
+func _button_at(point: Vector2) -> Control:
+	for button in reserved_buttons:
+		if not button.is_visible_in_tree():
+			continue
+		var local_point := button.get_global_transform_with_canvas().affine_inverse() * point
+		if Rect2(Vector2.ZERO, button.size).has_point(local_point):
+			return button
+	return null
 
 
 func _notification(what: int) -> void:
@@ -84,6 +92,7 @@ func _set_direction(direction: Vector2) -> void:
 
 func reset() -> void:
 	_button_finger = -1
+	_touch_button = null
 	_reset_movement()
 
 

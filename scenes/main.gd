@@ -17,8 +17,12 @@ const UpgradeMenu = preload("res://scenes/ui/upgrade_menu.gd")
 const ResultMenu = preload("res://scenes/ui/result_menu.gd")
 const JoystickControl = preload("res://scenes/ui/virtual_joystick.gd")
 const ShopMenu = preload("res://scenes/ui/shop_menu.gd")
-const ArtifactCatalog = preload("res://scripts/artifact_catalog.gd")
-const ArtifactInventory = preload("res://scripts/artifact_inventory.gd")
+const GearMenu = preload("res://scenes/ui/equipment_menu.gd")
+const GameMenu = preload("res://scenes/ui/game_menu.gd")
+const Cultivation = preload("res://scripts/cultivation_catalog.gd")
+const Equipment = preload("res://scripts/equipment_catalog.gd")
+const RunInventory = preload("res://scripts/run_inventory.gd")
+const Pills = preload("res://scripts/pill_catalog.gd")
 const BattleEffects = preload("res://scenes/effects/battle_effects.gd")
 const BattleAudio = preload("res://scenes/effects/battle_audio.gd")
 const WOLF_SCENE := preload("res://scenes/enemies/wolf_demon.tscn")
@@ -29,6 +33,7 @@ const ORB_SCENE := preload("res://scenes/enemies/magic_orb.tscn")
 const SWORD_SCENE := preload("res://scenes/skills/flying_sword.tscn")
 const CRYSTAL_SCENE := preload("res://scenes/pickups/spirit_crystal.tscn")
 const STONE_SCENE := preload("res://scenes/pickups/spirit_stone.tscn")
+const CAVE_SCENE := "res://scenes/ui/cave_menu.tscn"
 const STONE_DROP_OFFSET := Vector3(24.0, 0.0, -24.0)
 const MAX_ENEMIES := 100
 const BASE_SPAWN_INTERVAL := 1.5
@@ -57,6 +62,9 @@ enum Phase { BATTLE, VICTORY_SLOW, RESULT }
 @onready var _joystick: JoystickControl = $TouchUI/SafeArea/VirtualJoystick
 @onready var _result_menu: ResultMenu = $TouchUI/SafeArea/ResultMenu
 @onready var _shop_menu: ShopMenu = $TouchUI/SafeArea/ShopMenu
+@onready var _gear_overlay: PanelContainer = $TouchUI/SafeArea/GearOverlay
+@onready var _gear_menu: GearMenu = $TouchUI/SafeArea/GearOverlay/Content/EquipmentMenu
+@onready var _game_menu: GameMenu = $TouchUI/SafeArea/GameMenu
 @onready var _effects: BattleEffects = $EffectsLayer/BattleEffects
 @onready var _audio: BattleAudio = $BattleAudio
 
@@ -83,12 +91,33 @@ var _level := 1
 var _xp := 0
 var _xp_required := 5
 var _spirit_stones := 0
-var _inventory := ArtifactInventory.new()
+var _inventory := RunInventory.new()
 var _choices: Array[int] = []
-var _pending_breakthrough := ""
+var _run_won := false
+var _settlement_saved := false
+var _settlement_error: Error = OK
+var _abyss_id := Cultivation.DEFAULT_ABYSS
+var _abyss: Dictionary
+var _loadout: Array = Cultivation.DEFAULT_LOADOUT.duplicate()
+var _enemy_visuals := {}
+var _enemy_shapes := {}
+var _loot_rng := RandomNumberGenerator.new()
+
+
+func configure_run(abyss: String, loadout: Array) -> bool:
+	if is_inside_tree() or not SaveManager.is_unlocked(abyss) or not SaveManager.valid_loadout(loadout):
+		return false
+	_abyss_id = abyss
+	_loadout = loadout.duplicate()
+	return true
 
 
 func _ready() -> void:
+	_abyss = Cultivation.ABYSSES[_abyss_id]
+	_inventory.setup(SaveManager.equipped_items())
+	_player.stats.configure(SaveManager.realm(), SaveManager.passive_levels(), _inventory.worn)
+	_player.refresh_equipment(true)
+	_loot_rng.randomize()
 	_wolf_pool = ObjectPool.new(WOLF_SCENE, $Enemies, 64, _connect_enemy.bind(_recycle_wolf))
 	_crow_pool = ObjectPool.new(CROW_SCENE, $Enemies, 24, _connect_crow)
 	_golem_pool = ObjectPool.new(GOLEM_SCENE, $Enemies, 8, _connect_enemy.bind(_recycle_golem))
@@ -99,13 +128,20 @@ func _ready() -> void:
 	_stone_pool = ObjectPool.new(STONE_SCENE, $Pickups, 32, _connect_stone)
 	_camera.snap_to(_player.global_position)
 	_ground.follow(_camera.focus)
+	_ground.set_abyss_tint(_abyss.color)
 	_effects.configure(_camera, $DeathBursts)
-	_skills.configure(_player, _living_enemies, _launch_sword, _camera)
-	_joystick.reserved_button = _hud.shop_button
-	_joystick.reserved_button_tapped.connect(_open_shop)
+	_skills.configure(_player, _living_enemies, _launch_sword, _camera, _loadout)
+	_joystick.reserved_buttons.assign([_hud.shop_button, _hud.bag_button, _hud.menu_button])
+	_joystick.reserved_button_tapped.connect(_on_battle_button_tapped)
 	_hud.shop_button.pressed.connect(_open_shop)
+	_hud.bag_button.pressed.connect(_open_bag)
+	_hud.menu_button.pressed.connect(_open_game_menu)
+	_game_menu.closed.connect(_resume_battle)
 	_shop_menu.close_requested.connect(_close_shop)
-	_shop_menu.purchase_requested.connect(_purchase_artifact)
+	_shop_menu.purchase_requested.connect(_purchase_pill)
+	_gear_overlay.get_node("Content/Close").pressed.connect(_close_gear)
+	_gear_menu.wear_requested.connect(_change_run_equipment)
+	_gear_menu.salvage_requested.connect(_salvage_loot)
 	_skills.swords_cast.connect(_audio.play_cue.bind(BattleAudio.Cue.SWORD))
 	_skills.lightning_cast.connect(_audio.play_cue.bind(BattleAudio.Cue.LIGHTNING))
 	_player.hit.connect(_audio.play_cue.bind(BattleAudio.Cue.HIT))
@@ -137,7 +173,8 @@ func _physics_process(delta: float) -> void:
 	_spawn_progress = minf(_spawn_progress, 1.0)
 	if _elapsed + TIME_EPSILON >= _next_golem_at and _active_enemy_count < _enemy_limit(_golem_pool):
 		_spawn_enemy(_golem_pool)
-		_next_golem_at += GOLEM_INTERVAL * (1 + floori((_elapsed + TIME_EPSILON - _next_golem_at) / GOLEM_INTERVAL))
+		var interval: float = GOLEM_INTERVAL / _abyss.density
+		_next_golem_at += interval * (1 + floori((_elapsed + TIME_EPSILON - _next_golem_at) / interval))
 
 	if not _boss_spawned and _elapsed + TIME_EPSILON >= BOSS_START:
 		_spawn_boss()
@@ -148,13 +185,21 @@ func _physics_process(delta: float) -> void:
 		_hud.set_survival_time(whole_second)
 
 
+func _unhandled_key_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel") and not event.is_echo() and _phase == Phase.BATTLE:
+		get_viewport().set_input_as_handled()
+		_open_game_menu()
+
+
 func _spawn_interval(elapsed: float) -> float:
 	var ramps := floori((elapsed + TIME_EPSILON) / RAMP_STEP)
 	# 频率按阶段乘 1.2，对应的刷新间隔按阶段缩短。
-	return maxf(MIN_SPAWN_INTERVAL, BASE_SPAWN_INTERVAL / pow(RAMP_MULTIPLIER, ramps))
+	return maxf(MIN_SPAWN_INTERVAL, BASE_SPAWN_INTERVAL / pow(RAMP_MULTIPLIER, ramps)) / _abyss.density
 
 
 func _connect_enemy(enemy: Enemy, recycle: Callable) -> void:
+	var health_scale: float = _abyss.boss_health if enemy is DemonLord else _abyss.health
+	enemy.apply_difficulty(health_scale, _abyss.damage, _abyss.scale, _abyss.color, _enemy_visuals, _enemy_shapes)
 	enemy.died.connect(_on_enemy_died)
 	enemy.death_finished.connect(recycle)
 	enemy.damaged.connect(_effects.show_damage)
@@ -168,6 +213,8 @@ func _connect_crow(crow: CrowDemon) -> void:
 
 func _connect_boss(boss: DemonLord) -> void:
 	_connect_enemy(boss, _recycle_boss)
+	boss.period_multiplier = _abyss.boss_period
+	boss.flame_damage = roundi(DemonLord.FLAME_DAMAGE * _abyss.damage)
 	boss.health_changed.connect(_hud.set_boss_health)
 	boss.flame_cast.connect(_launch_orb.bind(true))
 	boss.wolves_summoned.connect(_summon_wolves)
@@ -226,7 +273,7 @@ func _spawn_boss() -> void:
 	if boss == null:
 		return
 	_boss_spawned = true
-	_hud.show_boss(boss.max_health)
+	_hud.show_boss(_abyss.boss, boss.max_health)
 
 
 func _summon_wolves(origin: Vector3) -> void:
@@ -287,8 +334,9 @@ func _on_enemy_died(enemy: Enemy) -> void:
 	if _phase != Phase.BATTLE:
 		return
 	_kills += 1
-	_player.heal(_player.stats.kill_heal(_player.health, _player.max_health))
+	_player.heal(_player.stats.kill_heal())
 	_drop_spirit_stone(enemy)
+	_roll_equipment(enemy)
 	if enemy is DemonLord:
 		_begin_victory()
 		return
@@ -309,7 +357,21 @@ func _drop_spirit_stone(enemy: Enemy) -> void:
 	# 普通怪的两种掉落错开放置，魔尊的灵石则落在死亡位置。
 	var offset := STONE_DROP_OFFSET if enemy.crystal_count > 0 else Vector3.ZERO
 	var stone := _stone_pool.acquire() as MagnetPickup
-	stone.drop(enemy.global_position + offset, _player, _player.stats.stone_amount(enemy.stone_drop_amount))
+	stone.drop(enemy.global_position + offset, _player, _player.stats.stone_amount(enemy.stone_drop_amount * int(_abyss.stones)))
+
+
+func _roll_equipment(enemy: Enemy) -> void:
+	if enemy.equipment_chance < 1.0 and _loot_rng.randf() >= enemy.equipment_chance:
+		return
+	for i in range(enemy.equipment_count):
+		var item := Equipment.roll(_abyss.tier, enemy.purple_chance, _loot_rng)
+		var stone_value := _inventory.collect(item)
+		if stone_value > 0:
+			_spirit_stones += stone_value
+			_hud.set_spirit_stones(_spirit_stones)
+			_hud.show_loot("行囊已满 · 自动分解 +%d 灵石" % stone_value, Color("#ffda91"))
+		else:
+			_hud.show_loot("获得 %s" % Equipment.title(item), Equipment.COLORS[item.quality])
 
 
 func _recycle_wolf(enemy: Enemy) -> void:
@@ -346,7 +408,7 @@ func _on_crystal_collected(crystal: MagnetPickup) -> void:
 		return
 	_xp += 1
 	_refresh_hud()
-	if _xp >= _xp_required and not _upgrade_menu.visible and not _shop_menu.visible:
+	if _xp >= _xp_required and not _upgrade_menu.visible and not _shop_menu.visible and not _gear_overlay.visible and not _game_menu.visible:
 		_show_level_up()
 
 
@@ -360,38 +422,110 @@ func _on_stone_collected(stone: MagnetPickup) -> void:
 	_hud.set_spirit_stones(_spirit_stones)
 
 
+func _on_battle_button_tapped(button: Control) -> void:
+	if button == _hud.shop_button:
+		_open_shop()
+	elif button == _hud.bag_button:
+		_open_bag()
+	elif button == _hud.menu_button:
+		_open_game_menu()
+
+
+func _open_game_menu() -> void:
+	if _phase != Phase.BATTLE or get_tree().paused:
+		return
+	_joystick.reset()
+	get_tree().paused = true
+	_game_menu.open(true)
+
+
 func _open_shop() -> void:
 	if _phase != Phase.BATTLE or get_tree().paused:
 		return
 	_joystick.reset()
 	get_tree().paused = true
-	_shop_menu.open(_inventory, _spirit_stones)
+	_shop_menu.open(_spirit_stones, _player.health, _player.max_health, _player.stats)
 
 
 func _close_shop() -> void:
 	if _phase != Phase.BATTLE or not _shop_menu.visible:
 		return
 	_shop_menu.hide()
+	_resume_battle()
+
+
+func _resume_battle() -> void:
 	if _xp >= _xp_required:
 		_show_level_up()
 	else:
 		get_tree().paused = false
 
 
-func _purchase_artifact(id: StringName) -> void:
-	if _phase != Phase.BATTLE or not _shop_menu.visible:
+func _purchase_pill(id: String) -> void:
+	if _phase != Phase.BATTLE or not _shop_menu.visible or not Pills.ITEMS.has(id):
 		return
-	var transaction := _inventory.purchase(id, _spirit_stones)
-	if not transaction.reason.is_empty():
-		_shop_menu.show_status(transaction.reason)
+	var reason := Pills.unavailable_reason(id, _spirit_stones, _player.health, _player.max_health, _player.stats.has_pill(id))
+	if not reason.is_empty():
+		_shop_menu.show_status(reason)
 		return
-	_spirit_stones -= transaction.cost
-	_player.stats.rebuild(_inventory.slots)
-	_player.refresh_equipment(ArtifactCatalog.ITEMS[id].get("heal_on_buy", 0))
+	var pill: Dictionary = Pills.ITEMS[id]
+	_spirit_stones -= pill.cost
+	if id == "heal":
+		_player.heal(roundi(_player.max_health * 0.5))
+	else:
+		_player.stats.use_pill(id)
 	_hud.set_spirit_stones(_spirit_stones)
-	_shop_menu.refresh(_inventory, _spirit_stones)
-	_shop_menu.show_success(id, transaction.slot, transaction.cost, _inventory.count(&"") == 0)
+	_shop_menu.refresh(_spirit_stones, _player.health, _player.max_health, _player.stats)
+	_shop_menu.show_status("已服用 %s · 消耗 %d 灵石" % [pill.name, pill.cost])
 	_audio.play_cue(BattleAudio.Cue.PURCHASE)
+
+
+func _open_bag() -> void:
+	if _phase != Phase.BATTLE or get_tree().paused:
+		return
+	_joystick.reset()
+	get_tree().paused = true
+	_gear_menu.display(GearMenu.Mode.BAG, _inventory.bag, _inventory.worn)
+	_gear_overlay.show()
+
+
+func _close_gear() -> void:
+	if not _gear_overlay.visible:
+		return
+	_gear_overlay.hide()
+	if _phase == Phase.BATTLE:
+		_resume_battle()
+	elif _phase == Phase.RESULT and _settlement_error == ERR_OUT_OF_MEMORY:
+		_result_menu.show()
+		_save_run_result()
+
+
+func _change_run_equipment(id: int, equip: bool) -> void:
+	if _phase != Phase.BATTLE or not _gear_overlay.visible:
+		return
+	var changed := _inventory.equip(id) if equip else _inventory.unequip(id)
+	if changed:
+		_player.stats.rebuild_equipment(_inventory.worn)
+		_player.refresh_equipment()
+		_gear_menu.display(GearMenu.Mode.BAG, _inventory.bag, _inventory.worn)
+
+
+func _organize_loot() -> void:
+	if _phase != Phase.RESULT or _settlement_error != ERR_OUT_OF_MEMORY:
+		return
+	_gear_menu.display(GearMenu.Mode.SETTLEMENT, _inventory.new_loot(), {}, SaveManager.equipment_count())
+	_result_menu.hide()
+	_gear_overlay.show()
+
+
+func _salvage_loot(id: int) -> void:
+	if _phase != Phase.RESULT or not _gear_overlay.visible or _settlement_error != ERR_OUT_OF_MEMORY:
+		return
+	var amount := _inventory.salvage(id)
+	if amount > 0:
+		_spirit_stones += amount
+		_gear_menu.display(GearMenu.Mode.SETTLEMENT, _inventory.new_loot(), {}, SaveManager.equipment_count())
+		_gear_menu.show_status("已分解 +%d 灵石；关闭后结算。" % amount)
 
 
 func _show_level_up() -> void:
@@ -410,12 +544,9 @@ func _on_upgrade_chosen(index: int) -> void:
 	if _phase != Phase.BATTLE or not _upgrade_menu.visible or index < 0 or index >= _choices.size():
 		return
 	_skills.apply_upgrade(_choices[index])
-	var previous_realm := _realm_name()
 	_level += 1
 	_xp -= _xp_required
 	_xp_required = floori(_xp_required * 1.3)
-	if _realm_name() != previous_realm:
-		_pending_breakthrough = _realm_name()
 	_refresh_hud()
 
 	# 同一帧拾到的多余经验可继续升级，不丢失也不跳过选牌。
@@ -425,9 +556,6 @@ func _on_upgrade_chosen(index: int) -> void:
 		_upgrade_menu.hide()
 		_choices.clear()
 		get_tree().paused = false
-		if not _pending_breakthrough.is_empty():
-			_hud.show_breakthrough(_pending_breakthrough)
-			_pending_breakthrough = ""
 
 
 func _on_player_died() -> void:
@@ -441,6 +569,7 @@ func _begin_victory() -> void:
 	_player.accepts_damage = false
 	_upgrade_menu.hide()
 	_shop_menu.hide()
+	_gear_overlay.hide()
 	get_tree().paused = false
 	_previous_time_scale = Engine.time_scale
 	Engine.time_scale = VICTORY_TIME_SCALE
@@ -458,32 +587,48 @@ func _exit_tree() -> void:
 
 
 func _show_result(won: bool) -> void:
+	if _phase == Phase.RESULT:
+		return
 	_phase = Phase.RESULT
+	_run_won = won
 	_joystick.reset()
 	_upgrade_menu.hide()
 	_shop_menu.hide()
+	_gear_overlay.hide()
 	_hud.hide()
 	get_tree().paused = true
-	_result_menu.open(won, floori(_elapsed + TIME_EPSILON), _kills, _realm_name())
+	_result_menu.open(won, floori(_elapsed + TIME_EPSILON), _kills, _level)
+	_save_run_result()
+
+
+func _save_run_result() -> void:
+	if _phase != Phase.RESULT or _settlement_saved:
+		return
+	var loot := _inventory.new_loot()
+	_settlement_error = SaveManager.settle_run(_spirit_stones, _run_won, _abyss_id, loot)
+	_settlement_saved = _settlement_error == OK
+	_result_menu.show_settlement(_settlement_error, _spirit_stones, SaveManager.spirit_stones(), loot.size())
 
 
 func _restart_battle() -> void:
-	if _phase != Phase.RESULT:
+	if _phase != Phase.RESULT or not _settlement_saved:
 		return
 	var tree := get_tree()
-	if tree.reload_current_scene() == OK:
+	var scene := load(scene_file_path) as PackedScene
+	var next_battle := scene.instantiate()
+	if next_battle.configure_run(_abyss_id, _loadout) and tree.change_scene_to_node(next_battle) == OK:
+		tree.paused = false
+	else:
+		next_battle.free()
+
+
+func _return_to_cave() -> void:
+	if _phase != Phase.RESULT or not _settlement_saved:
+		return
+	var tree := get_tree()
+	if tree.change_scene_to_file(CAVE_SCENE) == OK:
 		tree.paused = false
 
 
 func _refresh_hud() -> void:
-	_hud.set_progress(_level, _realm_name(), _xp, _xp_required)
-
-
-func _realm_name() -> String:
-	if _level >= 15:
-		return "元婴"
-	if _level >= 10:
-		return "金丹"
-	if _level >= 5:
-		return "筑基"
-	return "炼气"
+	_hud.set_progress(_level, _abyss.name, SaveManager.realm_name(), _xp, _xp_required)

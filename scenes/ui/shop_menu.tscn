@@ -68,7 +68,7 @@ theme_override_constants/separation = 12
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 30
-text = "法宝商店"
+text = "炼丹房"
 
 [node name="Balance" type="Label" parent="Panel/Margin/Content/Header"]
 layout_mode = 2
@@ -95,22 +95,11 @@ size_flags_horizontal = 3
 mouse_filter = 2
 theme_override_constants/separation = 8
 
-[node name="InventoryTitle" type="Label" parent="Panel/Margin/Content"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 23
-text = "法宝栏"
-
-[node name="Slots" type="GridContainer" parent="Panel/Margin/Content"]
-layout_mode = 2
-mouse_filter = 2
-columns = 3
-theme_override_constants/h_separation = 8
-theme_override_constants/v_separation = 8
-
 [node name="Status" type="Label" parent="Panel/Margin/Content"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.84, 0.44, 1)
 theme_override_font_sizes/font_size = 21
+autowrap_mode = 3
 text = " "
 
 [connection signal="pressed" from="Panel/Margin/Content/Header/Close" to="." method="_close"]

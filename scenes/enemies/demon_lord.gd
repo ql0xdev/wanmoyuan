@@ -11,12 +11,14 @@ const FLAME_DAMAGE := 15
 
 var _flame_left := FLAME_INTERVAL
 var _summon_left := SUMMON_INTERVAL
+var period_multiplier := 1.0
+var flame_damage := FLAME_DAMAGE
 
 
 func _reset_behavior() -> void:
 	super._reset_behavior()
-	_flame_left = FLAME_INTERVAL
-	_summon_left = SUMMON_INTERVAL
+	_flame_left = FLAME_INTERVAL * period_multiplier
+	_summon_left = SUMMON_INTERVAL * period_multiplier
 
 
 func _update_attack(delta: float) -> void:
@@ -25,11 +27,11 @@ func _update_attack(delta: float) -> void:
 		return
 	_flame_left -= delta
 	if _flame_left <= 0.000001:
-		_flame_left += FLAME_INTERVAL
+		_flame_left += FLAME_INTERVAL * period_multiplier
 		_cast_flames()
 	_summon_left -= delta
 	if _summon_left <= 0.000001:
-		_summon_left += SUMMON_INTERVAL
+		_summon_left += SUMMON_INTERVAL * period_multiplier
 		wolves_summoned.emit(global_position)
 
 
@@ -39,4 +41,4 @@ func _cast_flames() -> void:
 	var angle := atan2(toward.z, toward.x)
 	for i in range(FLAME_COUNT):
 		var direction := BattlePlane.direction(angle + (float(i) - 2.0) * FLAME_STEP)
-		flame_cast.emit(global_position, direction, FLAME_DAMAGE)
+		flame_cast.emit(global_position, direction, flame_damage)

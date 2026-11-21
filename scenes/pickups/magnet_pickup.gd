@@ -1,11 +1,14 @@
 extends Node3D
 
 const Player = preload("res://scenes/player.gd")
+const Stats = preload("res://scripts/stats_manager.gd")
 
 signal collected(pickup: Node3D)
 
 const PICKUP_RADIUS := 16.0
 const MAGNET_DURATION := 0.35
+
+@export var use_crystal_magnet_bonus := true
 
 var amount := 1
 var _target: Player
@@ -30,7 +33,7 @@ func _physics_process(delta: float) -> void:
 	var target_position := _target.global_position
 	if not _magnet_active:
 		# 触发磁吸前始终停在掉落点，不随玩家移动，也不按掉落时长触发。
-		var radius := _target.stats.magnet_radius
+		var radius := _target.stats.magnet_radius if use_crystal_magnet_bonus else Stats.BASE_MAGNET_RADIUS
 		if _drop_position.distance_squared_to(target_position) > radius * radius:
 			return
 		_magnet_active = true

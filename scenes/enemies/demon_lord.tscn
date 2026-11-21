@@ -27,6 +27,9 @@ damage = 30
 body_radius = 42.0
 crystal_count = 0
 stone_drop_amount = 200
+equipment_count = 2
+equipment_chance = 1.0
+purple_chance = 0.15
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 shape = SubResource("CylinderShape3D_boss")

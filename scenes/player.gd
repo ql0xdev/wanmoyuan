@@ -18,12 +18,11 @@ const DEATH_TINT := Color("#562a26")
 var _hit_material := StandardMaterial3D.new()
 
 var stats := StatsManager.new()
-var _base_max_health := StatsManager.BASE_HEALTH
+var _run_health_bonus := 0
 var max_health := StatsManager.BASE_HEALTH
 var health := max_health
 var accepts_damage := true
 var _invulnerable_left := 0.0
-var _speed_boost_left := 0.0
 var _joystick_direction := Vector3.ZERO
 
 
@@ -37,14 +36,13 @@ func _physics_process(delta: float) -> void:
 		return
 	if _invulnerable_left > 0.0:
 		_update_hit_flash(delta)
-	_speed_boost_left = maxf(0.0, _speed_boost_left - delta)
 
 	var direction := BattlePlane.from_input(Input.get_vector("move_left", "move_right", "move_up", "move_down"))
 	if _joystick_direction != Vector3.ZERO:
 		direction = _joystick_direction
 
 	# 两种输入共用同一移动逻辑，斜向不加速，松手即停。
-	velocity = direction * stats.move_speed(_speed_boost_left > 0.0)
+	velocity = direction * stats.move_speed()
 	move_and_slide()
 
 
@@ -63,7 +61,6 @@ func take_damage(amount: int) -> void:
 	health_changed.emit(health, max_health)
 	hit.emit()
 	if is_alive():
-		_speed_boost_left = stats.hit_speed_duration
 		_invulnerable_left = INVULNERABILITY
 		_body.material_override = _hit_material
 	else:
@@ -91,12 +88,31 @@ func heal(amount: int) -> void:
 
 
 func increase_max_health(amount: int) -> void:
-	_base_max_health += amount
+	_run_health_bonus += amount
 	refresh_equipment()
 
 
-func refresh_equipment(heal_on_buy := 0) -> void:
-	max_health = _base_max_health + stats.max_health_bonus
+func refresh_equipment(refill := false) -> void:
+	max_health = stats.max_health(_run_health_bonus)
 	if is_alive():
-		health = mini(health + heal_on_buy, max_health)
+		health = max_health if refill else mini(health, max_health)
 	health_changed.emit(health, max_health)
+
+
+func blink(distance: float) -> bool:
+	var collider: CollisionShape3D = $CollisionShape3D
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.shape = collider.shape
+	query.collision_mask = BattlePlane.OBSTACLE_LAYER | 2
+	query.exclude = [get_rid()]
+	var space := get_world_3d().direct_space_state
+	var angle := randf() * TAU
+	for i in range(12):
+		var destination := global_position + BattlePlane.direction(angle + TAU * i / 12.0) * distance
+		query.transform = Transform3D(collider.global_basis, destination + collider.position)
+		if space.intersect_shape(query, 1).is_empty():
+			global_position = destination
+			velocity = Vector3.ZERO
+			reset_physics_interpolation()
+			return true
+	return false

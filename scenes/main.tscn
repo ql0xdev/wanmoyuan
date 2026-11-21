@@ -1,4 +1,4 @@
-[gd_scene load_steps=15 format=3]
+[gd_scene load_steps=17 format=3]
 
 [ext_resource type="Script" path="res://scenes/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
@@ -13,6 +13,8 @@
 [ext_resource type="Script" path="res://scenes/effects/battle_audio.gd" id="11_audio"]
 [ext_resource type="PackedScene" path="res://scenes/world/battle_world.tscn" id="12_world"]
 [ext_resource type="Script" path="res://scenes/world/battle_camera.gd" id="13_camera"]
+[ext_resource type="PackedScene" path="res://scenes/ui/gear_overlay.tscn" id="14_gear"]
+[ext_resource type="PackedScene" path="res://scenes/ui/game_menu.tscn" id="15_menu"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_bursts"]
 shading_mode = 0
@@ -75,8 +77,15 @@ process_mode = 1
 
 [node name="ShopMenu" parent="TouchUI/SafeArea" instance=ExtResource("9_shop")]
 
+[node name="GearOverlay" parent="TouchUI/SafeArea" instance=ExtResource("14_gear")]
+
+[node name="GameMenu" parent="TouchUI/SafeArea" instance=ExtResource("15_menu")]
+
 [connection signal="died" from="Player" to="." method="_on_player_died"]
 [connection signal="health_changed" from="Player" to="TouchUI/SafeArea/BattleHUD" method="set_health"]
 [connection signal="direction_changed" from="TouchUI/SafeArea/VirtualJoystick" to="Player" method="_on_joystick_direction_changed"]
 [connection signal="choice_selected" from="TouchUI/SafeArea/UpgradeMenu" to="." method="_on_upgrade_chosen"]
 [connection signal="restart_requested" from="TouchUI/SafeArea/ResultMenu" to="." method="_restart_battle"]
+[connection signal="cave_requested" from="TouchUI/SafeArea/ResultMenu" to="." method="_return_to_cave"]
+[connection signal="save_retry_requested" from="TouchUI/SafeArea/ResultMenu" to="." method="_save_run_result"]
+[connection signal="organize_requested" from="TouchUI/SafeArea/ResultMenu" to="." method="_organize_loot"]
