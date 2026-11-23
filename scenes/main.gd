@@ -1,8 +1,7 @@
-extends Node3D
+extends Node2D
 
 const ObjectPool = preload("res://scripts/object_pool.gd")
 const SpawnManager = preload("res://scripts/spawn_manager.gd")
-const BattlePlane = preload("res://scripts/battle_plane.gd")
 const BattleCamera = preload("res://scenes/world/battle_camera.gd")
 const BattleGround = preload("res://scenes/world/battle_ground.gd")
 const Player = preload("res://scenes/player.gd")
@@ -45,8 +44,8 @@ const RECOVERY_DROP_SCENE := preload("res://scenes/pickups/recovery_drop.tscn")
 const GATHER_DROP_SCENE := preload("res://scenes/pickups/gather_drop.tscn")
 const EQUIPMENT_SCENE := preload("res://scenes/pickups/equipment_pickup.tscn")
 const CAVE_SCENE := "res://scenes/ui/cave_menu.tscn"
-const STONE_DROP_OFFSET := Vector3(24.0, 0.0, -24.0)
-const EQUIPMENT_DROP_OFFSET := Vector3(-22.0, 0.0, 22.0)
+const STONE_DROP_OFFSET := Vector2(24.0, -24.0)
+const EQUIPMENT_DROP_OFFSET := Vector2(-22.0, 22.0)
 const EQUIPMENT_SPREAD := 54.0
 const MAX_ENEMIES := 150
 const VICTORY_SLOW_DURATION := 0.5
@@ -55,7 +54,7 @@ const VICTORY_LOOT_SECONDS := 10
 const RECOVERY_DROP_CHANCE := 0.03
 const GATHER_DROP_CHANCE := 0.01
 const RECOVERY_FRACTION := 0.30
-const CONSUMABLE_OFFSET := Vector3(-24.0, 0.0, -30.0)
+const CONSUMABLE_OFFSET := Vector2(-24.0, -30.0)
 const HIT_STOP_SECONDS := 0.06
 const HIT_STOP_SCALE := 0.05
 const HIT_STOP_COOLDOWN_USEC := 500000
@@ -123,7 +122,6 @@ var _settlement_saved := false
 var _settlement_error: Error = OK
 var _abyss_id := Cultivation.DEFAULT_ABYSS
 var _abyss: Dictionary
-var _enemy_visuals := {}
 var _enemy_shapes := {}
 var _loot_rng := RandomNumberGenerator.new()
 var _consumable_rng := RandomNumberGenerator.new()
@@ -160,7 +158,7 @@ func _ready() -> void:
 	_camera.snap_to(_player.global_position)
 	_ground.follow(_camera.focus)
 	_ground.set_abyss_tint(_abyss.color)
-	_effects.configure(_camera.presentation, $DeathBursts)
+	_effects.configure(_camera)
 	_skills.configure(_player, _living_enemies, _launch_sword, _camera, SaveManager.learned_skills(), SaveManager.passive_levels(), _damage_batch)
 	_damage_batch.resolved.connect(_try_hit_stop)
 	_joystick.reserved_buttons.assign([_hud.shop_button, _hud.bag_button, _hud.menu_button, _hud._loot_notice])
@@ -246,7 +244,7 @@ func _spawn_interval(elapsed: float) -> float:
 
 
 func _connect_enemy(enemy: Enemy, recycle: Callable) -> void:
-	enemy.apply_difficulty(_abyss.health, _abyss.damage, _abyss.scale, _abyss.color, _enemy_visuals, _enemy_shapes)
+	enemy.apply_difficulty(_abyss.health, _abyss.damage, _abyss.scale, _abyss.color, _enemy_shapes)
 	enemy.died.connect(_on_enemy_died)
 	enemy.death_finished.connect(recycle)
 	enemy.damaged.connect(_effects.show_damage)
@@ -302,7 +300,7 @@ func _spawn_enemy(pool: ObjectPool) -> Enemy:
 	if _active_enemy_count >= _enemy_limit(pool):
 		return null
 	var enemy := pool.acquire() as Enemy
-	return _activate_enemy(enemy, _outside_screen_position(enemy.visual_bounds()))
+	return _activate_enemy(enemy, _outside_screen_position(enemy.visual_extent()))
 
 
 func _enemy_limit(pool: ObjectPool) -> int:
@@ -321,32 +319,29 @@ func _spawn_regular_kind(kind: int) -> bool:
 	return _spawn_enemy(_pool_for_kind(kind)) != null
 
 
-func _spawn_kind_at(kind: int, at: Vector3) -> bool:
+func _spawn_kind_at(kind: int, at: Vector2) -> bool:
 	return _spawn_enemy_at(_pool_for_kind(kind), at) != null
 
 
-func _spawn_wave_at(kind: int, at: Vector3, center: Vector3) -> bool:
+func _spawn_wave_at(kind: int, at: Vector2, center: Vector2) -> bool:
 	# 保留 V4 的 700 世界单位作为最小半径。拉远后把小部分仍在镜头中的点
 	# 沿原放射方向外移，任何一侧都不会在玩家眼前刷怪。
-	var view := get_viewport().get_visible_rect().grow(40)
-	var camera := _camera.presentation
+	var view := _camera.world_view().grow(40.0 / _camera.zoom.x)
 	var radial := (at - center).normalized()
 	for i in range(32):
-		var top := at + Vector3.UP * 110.0
-		if camera.is_position_behind(at) or (not view.has_point(camera.unproject_position(at)) \
-				and not view.has_point(camera.unproject_position(top))):
+		if not view.has_point(at):
 			break
 		at += radial * 110.0
 	return _spawn_kind_at(kind, at)
 
 
-func _spawn_enemy_at(pool: ObjectPool, position_in_world: Vector3) -> Enemy:
+func _spawn_enemy_at(pool: ObjectPool, position_in_world: Vector2) -> Enemy:
 	if _active_enemy_count >= _enemy_limit(pool):
 		return null
 	return _activate_enemy(pool.acquire() as Enemy, position_in_world)
 
 
-func _activate_enemy(enemy: Enemy, position_in_world: Vector3) -> Enemy:
+func _activate_enemy(enemy: Enemy, position_in_world: Vector2) -> Enemy:
 	enemy.spawn(position_in_world, _player)
 	_living_enemies.append(enemy)
 	_active_enemy_count += 1
@@ -367,7 +362,7 @@ func _warn_wave() -> void:
 	_audio.play_cue(BattleAudio.Cue.WAVE)
 
 
-func _outside_screen_position(model_bounds := AABB()) -> Vector3:
+func _outside_screen_position(art_extent := 0.0) -> Vector2:
 	# 按实际画面边缘刷怪，摄像机滞后或窗口比例变化时也不在屏内生成。
 	var view := get_viewport().get_visible_rect()
 	var point: Vector2
@@ -385,28 +380,15 @@ func _outside_screen_position(model_bounds := AABB()) -> Vector3:
 		3:
 			point = Vector2(randf_range(view.position.x, view.end.x), view.end.y + SPAWN_MARGIN)
 			outward = Vector2.DOWN
-	var at := _camera.ground_at(point)
-	# 透视下脚在屏外但高模型的上半身可能还在屏内，沿同一侧向外微调。
-	var edge := point.dot(outward) - SPAWN_MARGIN
-	for i in range(4):
-		var model_is_outside := true
-		for corner in range(8):
-			var world_corner := at + model_bounds.get_endpoint(corner)
-			if not _camera.is_position_behind(world_corner) and _camera.unproject_position(world_corner).dot(outward) < edge:
-				model_is_outside = false
-				break
-		if model_is_outside:
-			break
-		at = _camera.ground_at(point + outward * (i + 1) * SPAWN_MARGIN)
-	return at
+	return _camera.ground_at(point) + outward * maxf(0.0, art_extent - SPAWN_MARGIN / _camera.zoom.x)
 
 
-func _launch_sword(origin: Vector3, direction: Vector3, damage: int, reach := 1.0) -> void:
+func _launch_sword(origin: Vector2, direction: Vector2, damage: int, reach := 1.0) -> void:
 	var sword := _sword_pool.acquire() as FlyingSword
 	sword.launch(origin, direction, damage, reach)
 
 
-func _launch_orb(origin: Vector3, direction: Vector3, damage: int, boss_flame := false, source: Enemy = null) -> void:
+func _launch_orb(origin: Vector2, direction: Vector2, damage: int, boss_flame := false, source: Enemy = null) -> void:
 	var orb := _orb_pool.acquire() as MagicOrb
 	orb.launch(origin, direction, damage, _player, boss_flame, source)
 
@@ -419,7 +401,7 @@ func _on_enemy_died(enemy: Enemy) -> void:
 	_player.heal(_player.stats.kill_heal())
 	var boss := enemy is DemonLord
 	_drop_spirit_stone(enemy)
-	_roll_equipment(enemy)
+	_roll_equipment(enemy, Enemy.DEATH_DURATION)
 	if boss:
 		_begin_victory()
 		return
@@ -427,11 +409,11 @@ func _on_enemy_died(enemy: Enemy) -> void:
 	if enemy.crystal_count > 0:
 		# 一只怪最多掉一颗修为灵石；石傀的多颗价值合在同一颗里。
 		var stone := _cultivation_stone_pool.acquire() as MagnetPickup
-		stone.drop(enemy.global_position, _player, enemy.crystal_count * CULTIVATION_STONE_VALUE)
+		stone.drop(enemy.global_position, _player, enemy.crystal_count * CULTIVATION_STONE_VALUE, Enemy.DEATH_DURATION)
 	_roll_consumable(enemy.global_position)
 
 
-func _roll_consumable(at: Vector3) -> void:
+func _roll_consumable(at: Vector2) -> void:
 	var draw := _consumable_rng.randf()
 	var item: MagnetPickup
 	if draw < GATHER_DROP_CHANCE:
@@ -439,7 +421,7 @@ func _roll_consumable(at: Vector3) -> void:
 	elif draw < GATHER_DROP_CHANCE + RECOVERY_DROP_CHANCE:
 		item = _recovery_pool.acquire() as MagnetPickup
 	if item != null:
-		item.drop(at + CONSUMABLE_OFFSET, _player)
+		item.drop(at + CONSUMABLE_OFFSET, _player, 1, Enemy.DEATH_DURATION)
 
 
 func _drop_spirit_stone(enemy: Enemy) -> void:
@@ -448,29 +430,29 @@ func _drop_spirit_stone(enemy: Enemy) -> void:
 	if enemy.stone_drop_chance < 1.0 and randf() >= enemy.stone_drop_chance:
 		return
 	# 普通怪的两种掉落错开放置，魔尊的灵石则落在死亡位置。
-	var offset := STONE_DROP_OFFSET if enemy.crystal_count > 0 else Vector3.ZERO
+	var offset := STONE_DROP_OFFSET if enemy.crystal_count > 0 else Vector2.ZERO
 	var stone := _stone_pool.acquire() as MagnetPickup
 	var amount := _player.stats.stone_amount(enemy.stone_drop_amount * int(_abyss.stones))
-	stone.drop(enemy.global_position + offset, _player, amount)
+	stone.drop(enemy.global_position + offset, _player, amount, Enemy.DEATH_DURATION)
 
 
-func _roll_equipment(enemy: Enemy) -> void:
+func _roll_equipment(enemy: Enemy, reveal_delay := 0.0) -> void:
 	if enemy.equipment_chance < 1.0 and _loot_rng.randf() >= enemy.equipment_chance:
 		return
-	var center := enemy.global_position + (EQUIPMENT_DROP_OFFSET if enemy.crystal_count > 0 else Vector3.ZERO)
+	var center := enemy.global_position + (EQUIPMENT_DROP_OFFSET if enemy.crystal_count > 0 else Vector2.ZERO)
 	var bonus: Dictionary = _abyss.get("bonus_drop", {})
 	var has_bonus := enemy is DemonLord and not bonus.is_empty() and Cultivation.realm_at_least(SaveManager.realm(), bonus.realm)
 	var count := enemy.equipment_count + int(has_bonus)
 	for i in range(count):
 		var tier: int = bonus.tier if has_bonus and i == enemy.equipment_count else _abyss.tier
 		var item := Equipment.roll(tier, enemy.purple_chance, _loot_rng)
-		var offset := Vector3.RIGHT * ((i - (count - 1) * 0.5) * EQUIPMENT_SPREAD)
-		_drop_equipment(center + offset, item)
+		var offset := Vector2.RIGHT * ((i - (count - 1) * 0.5) * EQUIPMENT_SPREAD)
+		_drop_equipment(center + offset, item, reveal_delay)
 
 
-func _drop_equipment(at: Vector3, item: Dictionary) -> void:
+func _drop_equipment(at: Vector2, item: Dictionary, reveal_delay := 0.0) -> void:
 	var pickup := _equipment_pool.acquire() as EquipmentPickup
-	pickup.drop(at, _player, item)
+	pickup.drop(at, _player, item, reveal_delay)
 	_effects.track_equipment(pickup)
 
 
@@ -865,7 +847,7 @@ func _start_victory_loot() -> void:
 	Engine.time_scale = _previous_time_scale
 	_phase = Phase.VICTORY_LOOT
 	_victory_loot_left = float(VICTORY_LOOT_SECONDS)
-	for node: Node3D in [$Enemies, $Projectiles, _skills]:
+	for node: Node2D in [$Enemies, $Projectiles, _skills]:
 		node.process_mode = Node.PROCESS_MODE_DISABLED
 		node.hide()
 	_hud.show_victory_loot(VICTORY_LOOT_SECONDS)

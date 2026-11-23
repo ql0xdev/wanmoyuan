@@ -19,7 +19,7 @@ func clear() -> void:
 	_next.clear()
 
 
-func step(delta: float, origin: Vector3, radius: float, amount: int, enemies: Array[Enemy], batch: DamageBatch) -> bool:
+func step(delta: float, origin: Vector2, radius: float, amount: int, enemies: Array[Enemy], batch: DamageBatch) -> bool:
 	var ticked := false
 	var radius_squared := radius * radius
 	_next.clear()

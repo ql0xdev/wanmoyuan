@@ -1,15 +1,16 @@
-extends Node3D
+extends Node2D
 
-signal finished(sword: Node3D)
+signal finished(sword: Node2D)
 
 const Enemy = preload("res://scenes/enemies/enemy.gd")
+const Ink = preload("res://scenes/world/ink.gd")
 const SPEED := 600.0
 const LIFETIME := 3.0
 
-var _direction := Vector3.ZERO
+var _direction := Vector2.ZERO
 var _time_left := 0.0
 var _damage := 0
-var _ray := PhysicsRayQueryParameters3D.new()
+var _ray := PhysicsRayQueryParameters2D.new()
 
 
 func _ready() -> void:
@@ -17,10 +18,10 @@ func _ready() -> void:
 	_ray.hit_from_inside = true
 
 
-func launch(at: Vector3, direction: Vector3, damage: int, reach := 1.0) -> void:
+func launch(at: Vector2, direction: Vector2, damage: int, reach := 1.0) -> void:
 	global_position = at
-	_direction = direction if direction != Vector3.ZERO else Vector3.RIGHT
-	look_at(at + _direction)
+	_direction = direction if direction != Vector2.ZERO else Vector2.RIGHT
+	rotation = _direction.angle()
 	_time_left = LIFETIME * reach
 	_damage = damage
 
@@ -30,7 +31,7 @@ func _physics_process(delta: float) -> void:
 	_ray.from = global_position
 	_ray.to = global_position + _direction * SPEED * step
 	# 检测飞剑尖端本帧扫过的线段，只命中第一只活着的敌人。
-	var hit := get_world_3d().direct_space_state.intersect_ray(_ray)
+	var hit := get_world_2d().direct_space_state.intersect_ray(_ray)
 	if not hit.is_empty():
 		var enemy := hit.collider as Enemy
 		enemy.take_damage(_damage)
@@ -41,3 +42,9 @@ func _physics_process(delta: float) -> void:
 	_time_left -= delta
 	if _time_left <= 0.0:
 		finished.emit(self)
+
+
+func _draw() -> void:
+	draw_line(Vector2(-51, 0), Vector2(12, 0), Color("#6ee8e733"), 8, true)
+	draw_line(Vector2(-41, 0), Vector2(-7, 0), Color("#92f9e58a"), 2, true)
+	Ink.sword(self, Vector2.ZERO, Vector2.RIGHT, Color("#9dfae3"), 0.86)

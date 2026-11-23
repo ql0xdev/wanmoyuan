@@ -1,14 +1,14 @@
-extends CharacterBody3D
+extends CharacterBody2D
 
 const Player = preload("res://scenes/player.gd")
 const BattlePlane = preload("res://scripts/battle_plane.gd")
-const FLASH_MATERIAL := preload("res://scenes/world/flash_material.tres")
+const ActorArt = preload("res://scenes/world/actor_art.gd")
 
-signal died(enemy: CharacterBody3D)
-signal death_finished(enemy: CharacterBody3D)
+signal died(enemy: CharacterBody2D)
+signal death_finished(enemy: CharacterBody2D)
 signal health_changed(current: int)
-signal damaged(at: Vector3, amount: int, critical: bool)
-signal death_burst(at: Vector3, radius: float, tint: Color)
+signal damaged(at: Vector2, amount: int, critical: bool)
+signal death_burst(at: Vector2, radius: float, tint: Color)
 
 const PLAYER_LAYER := 1
 const ENEMY_LAYER := 2
@@ -25,10 +25,7 @@ const DEATH_DURATION := 0.20
 @export_range(0.0, 1.0) var equipment_chance := 0.01
 @export_range(0.0, 1.0) var purple_chance := 0.03
 
-@onready var _body: MeshInstance3D = $Body
-@onready var _base_scale := _body.scale
-@onready var _base_material: StandardMaterial3D = _body.material_override
-@onready var _visual_bounds := _body.transform * _body.get_aabb()
+@onready var _body: ActorArt = $Body
 
 var speed_multiplier := 1.0
 var spawn_id := 0
@@ -40,41 +37,35 @@ var _shock_amp := 0.0
 var _dots := {}
 var _health := 0
 var _target: Player
+var _hit_motion: Tween
+var _art_clock := 0.0
+var _art_kind := ActorArt.Kind.WOLF
 
 
 func apply_difficulty(health_multiplier: float, damage_multiplier: float, size_multiplier: float,
-		tint: Color, visual_cache: Dictionary, shape_cache: Dictionary) -> void:
+		tint: Color, shape_cache: Dictionary) -> void:
 	max_health = roundi(max_health * health_multiplier)
 	damage = roundi(damage * damage_multiplier)
-	if is_equal_approx(size_multiplier, 1.0):
-		return
-	body_radius *= size_multiplier
-	var collider: CollisionShape3D = $CollisionShape3D
-	var original := collider.shape
-	if not shape_cache.has(original):
-		var shape := original.duplicate() as CylinderShape3D
-		shape.radius = body_radius
-		shape_cache[original] = shape
-	collider.shape = shape_cache[original]
-	if not visual_cache.has(_base_material):
-		var material := _base_material.duplicate() as StandardMaterial3D
-		material.albedo_color = material.albedo_color.lerp(tint, 0.65)
-		if material.emission_enabled:
-			material.emission = tint * 0.42
-		visual_cache[_base_material] = material
-	_base_material = visual_cache[_base_material]
-	_body.material_override = _base_material
-	_body.position *= size_multiplier
-	_base_scale *= size_multiplier
-	_body.scale = _base_scale
-	_visual_bounds = _body.transform * _body.get_aabb()
+	_art_kind = _body.kind
+	if not is_equal_approx(size_multiplier, 1.0):
+		body_radius *= size_multiplier
+		var collider: CollisionShape2D = $CollisionShape2D
+		var original := collider.shape
+		if not shape_cache.has(original):
+			var shape := original.duplicate() as CircleShape2D
+			shape.radius = body_radius
+			shape_cache[original] = shape
+		collider.shape = shape_cache[original]
+	_body.radius = body_radius * (1.40 if _body.kind == ActorArt.Kind.BOSS else 1.0)
+	if tint != Color.WHITE:
+		_body.tint = _body.tint.lerp(tint, 0.16)
 
 
-func visual_bounds() -> AABB:
-	return _visual_bounds
+func visual_extent() -> float:
+	return _body.radius * 1.6 + 36.0
 
 
-func spawn(at: Vector3, target: Player) -> void:
+func spawn(at: Vector2, target: Player) -> void:
 	global_position = at
 	_target = target
 	_health = max_health
@@ -84,9 +75,17 @@ func spawn(at: Vector3, target: Player) -> void:
 	_frozen_left = 0.0
 	_shock_left = 0.0
 	_dots.clear()
-	velocity = Vector3.ZERO
-	_body.scale = _base_scale
-	_body.material_override = _base_material
+	velocity = Vector2.ZERO
+	_body.position = Vector2.ZERO
+	_body.rotation = 0.0
+	_body.scale = Vector2.ONE
+	_body.modulate.a = 1.0
+	_body.hit_white = false
+	_body.windup = false
+	_body.boss_fraction = 1.0
+	_body.boss_stage = 1
+	_art_clock = float(spawn_id % 8) * 0.013
+	_body.queue_redraw()
 	collision_layer = 0
 	collision_mask = PLAYER_LAYER | BattlePlane.OBSTACLE_LAYER
 	_reset_behavior()
@@ -101,7 +100,7 @@ func _physics_process(delta: float) -> void:
 	var frozen := _frozen_left > 0.0
 	if frozen:
 		_frozen_left = maxf(0.0, _frozen_left - delta)
-		velocity = Vector3.ZERO
+		velocity = Vector2.ZERO
 	else:
 		velocity = _move_velocity(delta)
 		if _slow_left > 0.0:
@@ -112,6 +111,19 @@ func _physics_process(delta: float) -> void:
 		collision_layer = ENEMY_LAYER
 	if not frozen:
 		_update_attack(delta)
+	_update_art(delta)
+
+
+func _update_art(delta: float) -> void:
+	if _target == null or (_art_kind != ActorArt.Kind.WOLF and _art_kind != ActorArt.Kind.CROW):
+		return
+	var toward := _target.global_position - global_position
+	if toward.length_squared() > 0.01:
+		_body.rotation = toward.angle()
+	if _art_kind == ActorArt.Kind.CROW:
+		_art_clock += delta
+		# 翅膀动画只改 CanvasItem 变换，不在每只鸦妖上反复构建几何。
+		_body.scale.y = 0.82 + 0.24 * sin(_art_clock * 16.0)
 
 
 func apply_slow(factor: float, duration: float) -> void:
@@ -158,7 +170,7 @@ func _reset_behavior() -> void:
 	pass
 
 
-func _move_velocity(_delta: float) -> Vector3:
+func _move_velocity(_delta: float) -> Vector2:
 	return global_position.direction_to(_target.global_position) * move_speed * speed_multiplier
 
 
@@ -173,25 +185,38 @@ func take_damage(amount: int, critical := false) -> void:
 		amount = roundi(amount * (1.0 + _shock_amp))
 	_health = maxi(0, _health - amount)
 	health_changed.emit(_health)
-	damaged.emit(_body.global_position + Vector3.UP * (body_radius + 5.0), amount, critical)
+	damaged.emit(global_position + Vector2.UP * (body_radius + 5.0), amount, critical)
+	_body.boss_fraction = clampf(float(_health) / max_health, 0.0, 1.0)
+	_body.hit_white = true
+	_body.queue_redraw()
+	if _hit_motion != null:
+		_hit_motion.kill()
 	if _health > 0:
+		var away := _target.global_position.direction_to(global_position)
+		if away == Vector2.ZERO:
+			away = -_body.facing
+		# 击退只动表现节点，不移动碰撞体、不影响索敌或拾取距离。
+		_body.position = away * 8.0
+		_hit_motion = create_tween().set_parallel()
+		_hit_motion.tween_property(_body, "position", Vector2.ZERO, 0.11).set_trans(Tween.TRANS_QUAD)
+		_hit_motion.tween_callback(_clear_hit).set_delay(0.05)
 		return
 
-	# 死亡后先退出碰撞和索敌、触发掉落，缩放消失后再回收到池中。
-	velocity = Vector3.ZERO
+	# 保留死亡当帧掉落与 0.20 秒回池时机，只更换动画。
+	velocity = Vector2.ZERO
 	collision_layer = 0
 	collision_mask = 0
 	_target = null
 	died.emit(self)
 
-	death_burst.emit(_body.global_position, body_radius, _base_material.albedo_color)
-	_body.material_override = FLASH_MATERIAL
+	death_burst.emit(global_position, body_radius, _body.tint)
 	var tween := create_tween().set_parallel()
-	tween.tween_property(_body, "scale", _base_scale * 1.25, 0.07)
-	tween.tween_callback(_restore_material).set_delay(0.055)
-	tween.chain().tween_property(_body, "scale", _base_scale * 0.01, DEATH_DURATION - 0.07)
+	tween.tween_property(_body, "scale", Vector2.ONE * 0.05, DEATH_DURATION).set_trans(Tween.TRANS_QUAD)
+	tween.tween_property(_body, "modulate:a", 0.0, DEATH_DURATION)
+	tween.tween_callback(_clear_hit).set_delay(0.055)
 	tween.chain().tween_callback(death_finished.emit.bind(self))
 
 
-func _restore_material() -> void:
-	_body.material_override = _base_material
+func _clear_hit() -> void:
+	_body.hit_white = false
+	_body.queue_redraw()

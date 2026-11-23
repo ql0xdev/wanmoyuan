@@ -18,6 +18,8 @@ V5.0.1 返修 APK：`android/wanmoyuan-v5.0.1-debug.apk`（versionCode 14）。�
 
 V5.0.2 返修 APK：`android/wanmoyuan-v5.0.2-debug.apk`（versionCode 15）。覆盖安装同签名版本可保留存档，格式不变。
 
+V5.5 APK：`android/wanmoyuan-v5.5-debug.apk`（versionCode 16）。覆盖安装同签名 V5 版本可保留原 V6 存档，不需要迁移。
+
 ## 如果需要 Gradle 构建
 
 USB 预设默认关闭 **Use Gradle Build**，直接使用 Godot 预编译模板。Gradle Build Template 已安装在 `android/build`；`android/` 是生成目录，新副本可通过 **项目 → 安装 Android 构建模板** 重新生成。

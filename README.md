@@ -2,6 +2,8 @@
 
 《万魔渊》是一款修仙题材的生存 Roguelike。走位躲怪，让功法自动攻击；击杀敌人积累修为，三选一习得或强化功法。
 
+**V5.5**：局内改为原生 2D 正俯视角，角色、怪物、地面和技能全部程序化绘制。沿用 V5.0.2 玩法及 V6 存档。见 [V5.5 验收报告](docs/V5.5-验收.md)。
+
 **V5.0**：镜头拉远 1.4 倍，兽潮增量，池化怪物上限提至 150。开局固定御剑术 Lv1，局内最多八格、功法最高 Lv5；300 秒一局，240 秒魔尊登场。见 [V5.0 逐项自检](docs/V5.0-验收.md)。
 
 **V5.0.1**：恢复拾取修为灵石升级，调矮角色模型。见 [返修验证](docs/V5.0.1-返修.md)。
@@ -92,11 +94,20 @@ $env:APPDATA = Join-Path $env:LOCALAPPDATA ('Temp/opencode/wanmoyuan-v5-test-' +
 & $godot --headless --path . --script res://tests/v5.gd -- full
 ```
 
-复拍用 `--resolution 540x960 --max-fps 60` 代替 `--headless`，脚本参数用 `capture <目录>`、`stress <目录>`，或 `legacy <目录> [V4.1 存档路径]`。`tests/v5_camera_probe.gd` 可复制到 V4.1 干净快照运行，比较同一位置的镜头和雾化。
+复拍用 `--resolution 540x960` 代替 `--headless`，脚本参数用 `capture <目录>`、`stress <目录>`，或 `legacy <目录> [V4.1 存档路径]`。原版透视对照脚本保留在 `v5.0` 标签。
+
+### V5.5 表现层回归测试
+
+```powershell
+$env:APPDATA = Join-Path $env:LOCALAPPDATA ('Temp/opencode/wanmoyuan-v55-test-' + [guid]::NewGuid())
+& $godot --path . --resolution 540x960 --script res://tests/v55.gd -- <截图目录> <V5旧档路径>
+```
+
+可用 `--headless` 且省略参数，只跑场景、碰撞与动画状态断言。150 怪压测用新的 `wanmoyuan-v5-test-*` 隔离目录，运行 `--resolution 540x960 --disable-vsync --max-fps 120 --script res://tests/v5.gd -- stress <截图目录>`。
 
 ## Android 部署
 
-Android 安装包可从 [V4.0 Release](https://github.com/ql0xdev/wanmoyuan/releases/tag/v4.0) 下载。导出预设支持 Godot USB 一键部署，包名为 `com.wanmoyuan.demonabyss`。使用 JDK 17、Android SDK 和与引擎版本匹配的导出模板，具体配置见 [Android USB 部署说明](docs/Android-USB部署.md)。源码仓库不包含 APK 或生成的 Android 构建目录。
+Android 安装包可从 [GitHub Releases](https://github.com/ql0xdev/wanmoyuan/releases) 下载。导出预设支持 Godot USB 一键部署，包名为 `com.wanmoyuan.demonabyss`。使用 JDK 17、Android SDK 和与引擎版本匹配的导出模板，具体配置见 [Android USB 部署说明](docs/Android-USB部署.md)。源码仓库不包含 APK 或生成的 Android 构建目录。
 
 真机建议从外渊完整刷一轮：检查触控、安全区、选牌、进化与拾取，重启后核对存档。另测五层 04:00 兽潮、天相第四阶段与八门功法同屏时的帧时间，以及连续游玩后的发热及降频。
 

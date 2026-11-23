@@ -1,242 +1,180 @@
-extends Node3D
+extends Node2D
 
-const SPHERE := preload("res://scenes/world/sphere_mesh.tres")
-const HEAL_FLASH_TIME := 0.32
+const Ink = preload("res://scenes/world/ink.gd")
 const WISP_SLOTS := 15
 const PULSE_SLOTS := 12
 const PULSE_TIME := 0.46
+const HEAL_FLASH_TIME := 0.32
 
-var _fire: Array[MeshInstance3D] = []
-var _bolts: Array[MeshInstance3D] = []
-var _impacts: Array[MeshInstance3D] = []
-var _ice: MeshInstance3D
-var _heal: MeshInstance3D
-var _heal_left := 0.0
-var _wisps: Array[MeshInstance3D] = []
-var _blades: Array[MeshInstance3D] = []
+var _orb_radius := 0.0
+var _ice_radius := 0.0
+var _lightning_radius := 0.0
+var _origin := Vector2.ZERO
+var _ice_at := Vector2.ZERO
+var _ice_range := 0.0
+var _fire := PackedVector2Array()
+var _blades := PackedVector2Array()
+var _bolts := PackedVector2Array()
+var _bolt_alpha := 0.0
+var _bolt_reach := 1.0
+var _wisps := {}
+var _auras := {}
 var _pulses: Array[Dictionary] = []
 var _pulse_index := 0
-var _pulse_mesh: TorusMesh
-var _wisp_material: StandardMaterial3D
-var _blast_material: StandardMaterial3D
-var _auras := {}
-var _aura_mesh: TorusMesh
-var _shield: MeshInstance3D
-var _thunder: MeshInstance3D
-var _thunder_left := 0.0
+var _shield := false
+var _heal_left := 0.0
+var _heal_at := Vector2.ZERO
 
 
-func setup(orb_radius: float, ice_radius: float, lightning_radius: float, max_orbs: int, max_bolts: int) -> void:
-	var fire_material := _glow(Color("#ff7134"))
-	for i in range(max_orbs):
-		var orb := _mesh(SPHERE, fire_material)
-		orb.scale = Vector3.ONE * orb_radius
-		_fire.append(orb)
-
-	var bolt := CylinderMesh.new()
-	bolt.top_radius = 2.6
-	bolt.bottom_radius = 3.8
-	bolt.height = 182.0
-	bolt.radial_segments = 8
-	bolt.rings = 0
-	var bolt_material := _glow(Color("#bcdeff"))
-	var impact := _ring(lightning_radius, 2.6)
-	var impact_material := _glow(Color("#81a7e7"), 0.35)
-	for i in range(max_bolts):
-		_bolts.append(_mesh(bolt, bolt_material))
-		_impacts.append(_mesh(impact, impact_material))
-	_ice = _mesh(_ring(ice_radius, 2.7), _glow(Color("#5aa4ce"), 0.25))
-	_heal = _mesh(_ring(25.0, 2.4), _glow(Color("#76e09f")))
+func setup(orb_radius: float, ice_radius: float, lightning_radius: float) -> void:
+	_orb_radius = orb_radius
+	_ice_radius = ice_radius
+	_lightning_radius = lightning_radius
+	for i in range(PULSE_SLOTS):
+		_pulses.append({"left": 0.0})
 
 
-func update_orbs(origin: Vector3, offsets: PackedVector3Array) -> void:
-	for i in range(_fire.size()):
-		var orb := _fire[i]
-		orb.visible = i < offsets.size()
-		if orb.visible:
-			orb.global_position = origin + offsets[i] + Vector3.UP * 22.0
+func update_orbs(origin: Vector2, offsets: PackedVector2Array) -> void:
+	_origin = origin
+	_fire = offsets.duplicate()
+	queue_redraw()
 
 
-func update_ice(origin: Vector3, reach: float) -> void:
-	_ice.global_position = origin + Vector3.UP * 1.0
-	_ice.scale = Vector3(reach, 1.0, reach)
-	_ice.show()
+func update_ice(origin: Vector2, reach: float) -> void:
+	_ice_at = origin
+	_ice_range = _ice_radius * reach
+	queue_redraw()
 
 
 func hide_ice() -> void:
-	_ice.hide()
+	_ice_range = 0.0
+	queue_redraw()
 
 
-func update_ascension(origin: Vector3, delta: float, shield: int) -> void:
-	if shield > 0:
-		if _shield == null:
-			_shield = _mesh(_ring(41.0, 4.0), _glow(Color("#72f0d6")))
-		_shield.global_position = origin + Vector3.UP * 24.0
-		_shield.show()
-	elif _shield != null:
-		_shield.hide()
+func update_ascension(origin: Vector2, delta: float, shield: int) -> void:
+	_origin = origin
+	var previously_shielded := _shield
+	_shield = shield > 0
 	for pulse_data in _pulses:
-		if pulse_data.left <= 0.0:
-			continue
-		pulse_data.left -= delta
-		if pulse_data.left <= 0.0:
-			pulse_data.node.hide()
-		else:
-			var scale_at := lerpf(0.22, 1.0, 1.0 - pulse_data.left / PULSE_TIME) * float(pulse_data.radius)
-			pulse_data.node.scale = Vector3(scale_at, 6.5, scale_at)
-			pulse_data.color.albedo_color.a = 0.84 * pulse_data.left / PULSE_TIME
-	if _thunder_left > 0.0:
-		_thunder_left -= delta
-		if _thunder_left <= 0.0:
-			_thunder.hide()
+		if pulse_data.left > 0.0:
+			pulse_data.left -= delta
+			queue_redraw()
+	if _shield or previously_shielded:
+		queue_redraw()
 
 
-func pulse(at: Vector3, radius: float, tint: Color, thunder := false) -> void:
-	if _pulse_mesh == null:
-		_pulse_mesh = _ring(1.0, 0.048)
-		for i in range(PULSE_SLOTS):
-			var material := StandardMaterial3D.new()
-			material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-			material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-			_pulses.append({"node": _mesh(_pulse_mesh, material), "color": material, "radius": 0.0, "left": 0.0})
-	var entry := _pulses[_pulse_index]
+func pulse(at: Vector2, radius: float, tint: Color, thunder := false) -> void:
+	_pulses[_pulse_index] = {"at": at, "radius": radius, "tint": tint, "left": PULSE_TIME, "thunder": thunder}
 	_pulse_index = (_pulse_index + 1) % _pulses.size()
-	entry.left = PULSE_TIME
-	entry.radius = radius
-	entry.color.albedo_color = tint
-	entry.node.global_position = at + Vector3.UP * 5.0
-	entry.node.scale = Vector3(radius * 0.22, 6.5, radius * 0.22)
-	entry.node.show()
-	if thunder:
-		if _thunder == null:
-			var bolt := CylinderMesh.new()
-			bolt.top_radius = 6.0
-			bolt.bottom_radius = 11.0
-			bolt.height = 270.0
-			bolt.radial_segments = 8
-			_thunder = _mesh(bolt, _glow(Color("#ffae64"), 1.5))
-		_thunder.global_position = at + Vector3.UP * 135.0
-		_thunder_left = 0.23
-		_thunder.show()
+	queue_redraw()
 
 
-func show_wisp(slot: int, at: Vector3, blast: bool) -> void:
-	if _wisps.is_empty():
-		_wisp_material = _glow(Color("#85efa9"), 1.3)
-		_blast_material = _glow(Color("#dc83ff"), 1.5)
-		for i in range(WISP_SLOTS):
-			_wisps.append(_mesh(SPHERE, _wisp_material))
-	var wisp := _wisps[slot]
-	wisp.material_override = _blast_material if blast else _wisp_material
-	wisp.scale = Vector3(12.0, 19.0, 12.0) if blast else Vector3(9.0, 15.0, 9.0)
-	wisp.global_position = at + Vector3.UP * 26.0
-	wisp.show()
+func show_wisp(slot: int, at: Vector2, blast: bool) -> void:
+	_wisps[slot] = [at, blast]
+	queue_redraw()
 
 
 func hide_wisp(slot: int) -> void:
-	if not _wisps.is_empty():
-		_wisps[slot].hide()
+	if _wisps.erase(slot):
+		queue_redraw()
 
 
-func show_aura(id: String, origin: Vector3, radius: float, tint: Color, delta: float) -> void:
-	if not _auras.has(id):
-		if _aura_mesh == null:
-			_aura_mesh = _ring(1.0, 0.048)
-		var material := StandardMaterial3D.new()
-		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		_auras[id] = {"mesh": _mesh(_aura_mesh, material), "material": material, "phase": 0.0}
-	var entry: Dictionary = _auras[id]
-	entry.phase = fposmod(entry.phase + delta * TAU * 2.0, TAU)
-	tint.a = 0.65 + 0.18 * sin(entry.phase)
-	entry.material.albedo_color = tint
-	entry.mesh.global_position = origin + Vector3.UP * 4.0
-	entry.mesh.scale = Vector3(radius, 5.0, radius)
-	entry.mesh.show()
+func show_aura(id: String, origin: Vector2, radius: float, tint: Color, delta: float) -> void:
+	var phase: float = _auras[id].phase if _auras.has(id) else 0.0
+	_auras[id] = {"at": origin, "radius": radius, "tint": tint, "phase": fposmod(phase + delta * TAU * 2.0, TAU)}
+	queue_redraw()
 
 
 func hide_aura(id: String) -> void:
-	if _auras.has(id):
-		_auras[id].mesh.hide()
+	_auras.erase(id)
+	queue_redraw()
 
 
-func show_blades(origin: Vector3, offsets: PackedVector3Array) -> void:
-	if _blades.is_empty():
-		var mesh := PrismMesh.new()
-		mesh.size = Vector3(13.0, 32.0, 6.0)
-		var material := _glow(Color("#fff4a3"), 1.35)
-		for i in range(offsets.size()):
-			_blades.append(_mesh(mesh, material))
-	for i in range(offsets.size()):
-		var blade := _blades[i]
-		var offset := offsets[i]
-		blade.global_position = origin + offset + Vector3.UP * 30.0
-		blade.rotation = Vector3(deg_to_rad(28.0), -atan2(offset.z, offset.x), deg_to_rad(-24.0))
-		blade.show()
+func show_blades(origin: Vector2, offsets: PackedVector2Array) -> void:
+	_origin = origin
+	_blades = offsets.duplicate()
+	queue_redraw()
 
 
-func show_lightning(points: PackedVector3Array, reach: float) -> void:
-	for i in range(points.size()):
-		_bolts[i].global_position = points[i] + Vector3.UP * 91.0
-		_bolts[i].show()
-		_impacts[i].global_position = points[i] + Vector3.UP * 2.0
-		_impacts[i].scale = Vector3(reach, 1.0, reach)
-		_impacts[i].show()
-	for i in range(points.size(), _bolts.size()):
-		_bolts[i].hide()
-		_impacts[i].hide()
+func show_lightning(points: PackedVector2Array, reach: float) -> void:
+	_bolts = points.duplicate()
+	_bolt_reach = reach
+	queue_redraw()
 
 
 func update_lightning(fraction: float) -> void:
-	for i in range(_bolts.size()):
-		var bolt := _bolts[i]
-		if bolt.visible:
-			if fraction <= 0.0:
-				bolt.hide()
-				_impacts[i].hide()
-			else:
-				var width := lerpf(0.28, 1.0, fraction)
-				bolt.scale = Vector3(width, 1.0, width)
+	_bolt_alpha = fraction
+	queue_redraw()
 
 
 func show_heal() -> void:
 	_heal_left = HEAL_FLASH_TIME
 
 
-func update_heal(origin: Vector3, delta: float) -> void:
-	if _heal_left <= 0.0:
-		_heal.hide()
-		return
-	var progress := 1.0 - _heal_left / HEAL_FLASH_TIME
-	_heal.global_position = origin + Vector3.UP * lerpf(1.0, 44.0, progress)
-	_heal.scale = Vector3(1.0 + progress * 0.5, 1.0 - progress * 0.75, 1.0 + progress * 0.5)
-	_heal.show()
-	_heal_left = maxf(0.0, _heal_left - delta)
+func update_heal(origin: Vector2, delta: float) -> void:
+	if _heal_left > 0:
+		_heal_at = origin
+		_heal_left = maxf(0.0, _heal_left - delta)
+		queue_redraw()
 
 
-func _mesh(mesh: Mesh, material: Material) -> MeshInstance3D:
-	var instance := MeshInstance3D.new()
-	instance.mesh = mesh
-	instance.material_override = material
-	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	instance.hide()
-	add_child(instance)
-	return instance
+func _draw() -> void:
+	if _ice_range > 0.0:
+		draw_circle(_ice_at, _ice_range, Color("#4279a018"), true, -1, true)
+		Ink.ring(self, _ice_at, _ice_range, Color("#7ed5ef7e"), 1.8)
+	if _shield:
+		draw_circle(_origin, 39.0, Color("#6efdd81e"), true, -1, true)
+		Ink.ring(self, _origin, 39.0, Color("#9bffdfd8"), 3.0)
+	for id: String in _auras:
+		var aura: Dictionary = _auras[id]
+		var tint: Color = aura.tint
+		var at: Vector2 = aura.at
+		var radius: float = aura.radius
+		var breathe: float = sin(aura.phase)
+		draw_circle(at, radius, Ink.alpha(tint, 0.054 + 0.012 * breathe), true, -1, true)
+		var opacity: float = 0.33 if id == "blades" else 0.66
+		Ink.ring(self, at, radius, Ink.alpha(tint, opacity + 0.10 * breathe), 2.8)
+		# 焰苗只改变绘制位置，不改变圆环实际判定半径。
+		if id == "wisp":
+			for i in range(12):
+				var axis := Vector2.from_angle(i * TAU / 12.0)
+				var tip := at + axis * (radius - 8.0 - 6.0 * sin(aura.phase + i))
+				draw_line(at + axis * radius, tip, Ink.alpha(tint, 0.66), 3.2, true)
+	for fx in _pulses:
+		if fx.left <= 0.0:
+			continue
+		var fraction: float = fx.left / PULSE_TIME
+		var radius := lerpf(0.22, 1.0, 1.0 - fraction) * float(fx.radius)
+		Ink.ring(self, fx.at, radius, Ink.alpha(fx.tint, 0.8 * fraction), 3.5)
+		if fx.thunder and fraction > 0.5:
+			_draw_thunder(fx.at, radius, fx.tint, fraction, 180.0)
+	for spot in _fire:
+		var at := _origin + spot
+		draw_circle(at, _orb_radius * 0.9, Color("#ff9a5672"), true, -1, true)
+		Ink.diamond(self, at, Vector2(4.8, 6.8), Color("#ff7753"), Color("#ffdeb0"))
+	for entry: Array in _wisps.values():
+		var at: Vector2 = entry[0]
+		var tint := Color("#efa2ff") if entry[1] else Color("#9cf2b5")
+		draw_circle(at, 10.0, Ink.alpha(tint, 0.30), true, -1, true)
+		Ink.diamond(self, at, Vector2(4.8, 6.5), Ink.alpha(tint, 0.82), tint)
+	for spot in _blades:
+		var dir := Vector2(-spot.y, spot.x).normalized()
+		var at := _origin + spot
+		draw_line(at - dir * 17.0, at + dir * 5.0, Color("#ffe8a953"), 5.0, true)
+		Ink.sword(self, at, dir, Color("#ffe9a4"), 0.74)
+	if _bolt_alpha > 0.0:
+		for point in _bolts:
+			_draw_thunder(point, _lightning_radius * _bolt_reach, Color("#a7cfff"), _bolt_alpha, 134.0)
+	if _heal_left > 0.0:
+		var fraction := _heal_left / HEAL_FLASH_TIME
+		Ink.ring(self, _heal_at, lerpf(45.0, 23.0, fraction), Ink.alpha(Color("#a4f8b7"), fraction), 3)
 
 
-func _ring(radius: float, width: float) -> TorusMesh:
-	var ring := TorusMesh.new()
-	ring.inner_radius = radius - width
-	ring.outer_radius = radius
-	ring.rings = 40
-	ring.ring_segments = 6
-	return ring
-
-
-func _glow(color: Color, energy := 0.65) -> StandardMaterial3D:
-	var material := StandardMaterial3D.new()
-	material.albedo_color = color
-	material.emission_enabled = true
-	material.emission = color
-	material.emission_energy_multiplier = energy
-	return material
+func _draw_thunder(at: Vector2, radius: float, tint: Color, fraction: float, height: float) -> void:
+	draw_circle(at, radius, Ink.alpha(tint, 0.13 * fraction), true, -1, true)
+	Ink.ring(self, at, radius, Ink.alpha(tint, 0.62 * fraction))
+	var zigzag := PackedVector2Array([at + Vector2(4, -height), at + Vector2(-8, -height * 0.65),
+		at + Vector2(9, -height * 0.42), at + Vector2(-3, -height * 0.25), at])
+	draw_polyline(zigzag, Ink.alpha(tint, 0.22 * fraction), 13.0, true)
+	draw_polyline(zigzag, Ink.alpha(tint, 0.85 * fraction), 5.0, true)
+	draw_polyline(zigzag, Ink.alpha(Color("#f4f9ff"), fraction), 2.0, true)

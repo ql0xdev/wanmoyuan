@@ -110,7 +110,7 @@ func _opening_and_cards() -> void:
 			chosen_seed = n
 			break
 	skills._upgrade_rng.seed = chosen_seed
-	var wolf: Enemy = battle._spawn_enemy_at(battle._wolf_pool, Vector3(250, 0, -170))
+	var wolf: Enemy = battle._spawn_enemy_at(battle._wolf_pool, Vector2(250, -170))
 	wolf.stone_drop_chance = 0.0
 	wolf.take_damage(wolf.max_health)
 	var drops := _visible_pickups(battle, "spirit_crystal.tscn")
@@ -125,7 +125,7 @@ func _opening_and_cards() -> void:
 	if not _out.is_empty():
 		await create_timer(0.65).timeout
 	await _capture("返修01-击杀掉灵石但修为不涨")
-	battle._player.global_position = drop_at + Vector3.RIGHT * 55
+	battle._player.global_position = drop_at + Vector2.RIGHT * 55
 	crystal._physics_process(0.05)
 	_expect(crystal._magnet_active and crystal.visible and battle._xp == 0, "进拾取范围开始磁吸，入身前不加修为")
 	crystal._physics_process(0.35)
@@ -194,7 +194,7 @@ func _opening_and_cards() -> void:
 
 func _pickup_values() -> void:
 	var battle := await _battle("outer")
-	var golem: Enemy = battle._spawn_enemy_at(battle._golem_pool, Vector3(320, 0, -170))
+	var golem: Enemy = battle._spawn_enemy_at(battle._golem_pool, Vector2(320, -170))
 	golem.take_damage(golem.max_health)
 	var gold := _visible_pickups(battle, "spirit_stone.tscn")
 	var blue := _visible_pickups(battle, "spirit_crystal.tscn")
@@ -207,11 +207,9 @@ func _pickup_values() -> void:
 	battle._open_game_menu()
 	battle._retreat_from_battle()
 	_expect(battle._settlement_saved and battle._xp == 0 and not battle._upgrade_menu.visible, "未捡的蓝色灵石不会补发")
-	var body := battle._player.get_node("Body") as MeshInstance3D
-	var bounds := body.transform * body.get_aabb()
-	var shape := battle._player.get_node("CollisionShape3D").shape as CylinderShape3D
-	_expect(absf(bounds.position.y) < 0.01 and is_equal_approx(bounds.size.y, 108.0)
-		and shape.radius == 16.0 and shape.height == 32.0, "角色模型贴地变矮，碰撞体原样")
+	var body := battle._player.get_node("Body") as Node2D
+	var shape := battle._player.get_node("CollisionShape2D").shape as CircleShape2D
+	_expect(body.position == Vector2.ZERO and shape.radius == 16.0, "表现居中且碰撞半径原样")
 
 
 func _visible_pickups(battle: Node, basename: String) -> Array[Node]:
@@ -230,30 +228,28 @@ func _wave() -> void:
 	battle._physics_process(0.02)
 	var enemies: Array = battle._living_enemies.duplicate()
 	_expect(enemies.size() == 23 and not battle._hud._wave_notice.visible, "60 秒正好生成 23 只")
-	var cam: Camera3D = battle._camera.presentation
+	var cam: Node2D = battle._camera
 	for enemy: Enemy in enemies:
-		_expect(enemy.global_position.length() >= 699.9 and not root.get_visible_rect().has_point(cam.unproject_position(enemy.global_position)),
+		_expect(enemy.global_position.length() >= 699.9 and not root.get_visible_rect().has_point(cam.screen_at(enemy.global_position)),
 			"实际生成在镜头外，距离不少于 700")
 	if not _out.is_empty():
 		for enemy: Enemy in enemies:
 			enemy.set_physics_process(false)
 		# 用验收专用俯视机位拍刚生成的那批敌人，不移动或增减任何怪物。
-		var rect := Rect2(Vector2(enemies[0].position.x, enemies[0].position.z), Vector2.ZERO)
+		var rect := Rect2(enemies[0].position, Vector2.ZERO)
 		for enemy: Enemy in enemies:
-			rect = rect.expand(Vector2(enemy.position.x, enemy.position.z))
-		var overhead := Camera3D.new()
-		overhead.projection = Camera3D.PROJECTION_ORTHOGONAL
+			rect = rect.expand(enemy.position)
+		var overhead := Camera2D.new()
 		var viewport_size := root.get_visible_rect().size
-		overhead.size = maxf(rect.size.x / (viewport_size.x / viewport_size.y), rect.size.y) * 1.52
-		overhead.far = 9000.0
+		overhead.zoom = Vector2.ONE * minf(viewport_size.x / rect.size.x, viewport_size.y / rect.size.y) / 1.52
 		battle.add_child(overhead)
-		overhead.global_position = Vector3(rect.get_center().x, 2900.0, rect.get_center().y)
-		overhead.rotation.x = -PI / 2.0
+		overhead.global_position = rect.get_center()
 		overhead.make_current()
+		overhead.force_update_scroll()
 		battle._hud.hide()
 		var numbered := 0
 		for j in range(enemies.size()):
-			var at := overhead.unproject_position(enemies[j].global_position) + Vector2(7, -12)
+			var at: Vector2 = overhead.get_canvas_transform() * enemies[j].global_position + Vector2(7, -12)
 			_mark(battle, at, "%02d" % (j + 1))
 			numbered += int(root.get_visible_rect().has_point(at))
 		_expect(numbered == 23, "图内完整标注兽潮 01–23")
@@ -269,7 +265,7 @@ func _auras_and_hit_stop() -> void:
 	battle._player.stats.configure("qi_refining", {}, {})
 	skills.apply_upgrade(Skill.ORBS)
 	battle._hud.set_skills(skills.slots())
-	var wolf: Enemy = battle._spawn_enemy_at(battle._wolf_pool, Vector3(45, 0, 4))
+	var wolf: Enemy = battle._spawn_enemy_at(battle._wolf_pool, Vector2(45, 4))
 	wolf.set_physics_process(false)
 	skills._update_orbs(0.0, 1)
 	skills._update_orbs(0.49, 1)
@@ -284,13 +280,13 @@ func _auras_and_hit_stop() -> void:
 	_enemy_health(battle, wolf, "1.00 秒 · 第二跳")
 	await _capture("验收05b-护体罡气第二跳")
 	_clear_marks()
-	wolf.global_position = Vector3(230, 0, 4)
+	wolf.global_position = Vector2(230, 4)
 	skills._update_orbs(0.60, 1)
 	_expect(wolf._health == 10, "出圈不再跳伤")
 	_enemy_health(battle, wolf, "1.60 秒 · 出圈血量不变")
 	await _capture("验收05c-出圈停止跳伤")
 	_clear_marks()
-	wolf.global_position = Vector3(45, 0, 4)
+	wolf.global_position = Vector2(45, 4)
 	skills._update_orbs(0.0, 1)
 	skills._update_orbs(0.49, 1)
 	_expect(wolf._health == 10, "重新进入重新计时")
@@ -300,7 +296,7 @@ func _auras_and_hit_stop() -> void:
 	var hit_events := []
 	battle.hit_stop_triggered.connect(func(kills: int): hit_events.append([kills, Time.get_ticks_usec()]))
 	for i in range(5):
-		var victim: Enemy = battle._spawn_enemy_at(battle._wolf_pool, Vector3(26, 0, -200) + Vector3.RIGHT * i * 5)
+		var victim: Enemy = battle._spawn_enemy_at(battle._wolf_pool, Vector2(26, -200) + Vector2.RIGHT * i * 5)
 		victim.set_physics_process(false)
 		victim._health = 1
 	skills._cast_lightning(1)
@@ -321,11 +317,11 @@ func _auras_and_hit_stop() -> void:
 func _swords() -> void:
 	var battle := await _battle("outer")
 	var skills: Node = battle._skills
-	var wolf: Enemy = battle._spawn_enemy_at(battle._wolf_pool, Vector3(325, 0, -485))
+	var wolf: Enemy = battle._spawn_enemy_at(battle._wolf_pool, Vector2(325, -485))
 	wolf.set_physics_process(false)
 	var shots := []
 	var launch: Callable = skills._launch_sword
-	skills._launch_sword = func(at: Vector3, direction: Vector3, amount: int, reach: float):
+	skills._launch_sword = func(at: Vector2, direction: Vector2, amount: int, reach: float):
 		shots.append([at, direction, amount, reach])
 		launch.call(at, direction, amount, reach)
 	for level: int in [1, 5]:
@@ -336,20 +332,20 @@ func _swords() -> void:
 		var length := 1800 if level == 1 else 2340
 		_expect(shots.size() == (1 if level == 1 else 8) and is_equal_approx(shots[0][3], 1.0 if level == 1 else 1.3),
 			"发射数和真实射程系数")
-		var swords := battle.get_node("Projectiles").get_children().filter(func(node: Node3D) -> bool:
+		var swords := battle.get_node("Projectiles").get_children().filter(func(node: Node2D) -> bool:
 			return node.visible and node.scene_file_path.ends_with("flying_sword.tscn"))
 		for j in range(swords.size()):
-			var sword: Node3D = swords[j]
+			var sword: Node2D = swords[j]
 			sword.set_physics_process(false)
 			var reach: float = sword._time_left * sword.SPEED
 			_expect(is_equal_approx(reach, length), "真实弹道生命周期对应距离")
 			sword.global_position += sword._direction * 360.0
 			if not _out.is_empty():
-				_mark(battle, battle._camera.presentation.unproject_position(sword.global_position + Vector3.UP * 48.0), str(j + 1), 21)
+				_mark(battle, battle._camera.screen_at(sword.global_position + Vector2.UP * 30.0), str(j + 1), 21)
 		_mark(battle, Vector2(42, 375), "御剑术 Lv%d · 同一视角\n%02d 把飞剑 / 射程 %d" % [level, shots.size(), length])
 		await _capture("验收06%s-御剑术Lv%d" % ["a" if level == 1 else "b", level])
 		_clear_marks()
-		for sword: Node3D in swords:
+		for sword: Node2D in swords:
 			sword.set_physics_process(true)
 			battle._recycle_sword(sword)
 
@@ -392,7 +388,7 @@ func _time_and_settlement() -> void:
 	battle._physics_process(0.035)
 	_expect(battle._boss_spawned and "04:00 / 05:00" == battle._hud._time_label.text, "240 秒刷 Boss；计时总长 300")
 	var boss: DemonLord = battle._living_enemies.filter(func(enemy: Enemy) -> bool: return enemy is DemonLord)[0]
-	boss.global_position = Vector3(180, 0, -310)
+	boss.global_position = Vector2(180, -310)
 	boss.set_physics_process(false)
 	await create_timer(0.20).timeout
 	await _capture("验收11a-240秒魔尊登场总长300秒")
@@ -401,7 +397,7 @@ func _time_and_settlement() -> void:
 	var slow_hits := []
 	battle.hit_stop_triggered.connect(func(kills: int): slow_hits.append(kills))
 	var far_stone: MagnetPickup = battle._stone_pool.acquire()
-	far_stone.drop(Vector3(-4100, 0, 0), battle._player, 500)
+	far_stone.drop(Vector2(-4100, 0), battle._player, 500)
 	boss.take_damage(boss.max_health)
 	await create_timer(0.61, true, false, true).timeout
 	_expect(not paused and battle._phase == battle.Phase.VICTORY_LOOT and battle._victory_loot_left == 10.0
@@ -418,7 +414,7 @@ func _time_and_settlement() -> void:
 		if stone.amount == 200:
 			reward = stone
 	_expect(reward != null, "魔尊灵石实际落地")
-	for drop: Node3D in battle.get_node("Pickups/EquipmentDrops").get_children():
+	for drop: Node2D in battle.get_node("Pickups/EquipmentDrops").get_children():
 		if not drop.visible:
 			continue
 		battle._player.global_position = drop.global_position
@@ -449,7 +445,7 @@ func _time_and_settlement() -> void:
 
 func _consumables() -> void:
 	var battle := await _battle("outer")
-	var player: Node3D = battle._player
+	var player: Node2D = battle._player
 	var kind_scenes := ["recovery_drop.tscn", "gather_drop.tscn"]
 	var chances: Array[float] = [battle.RECOVERY_DROP_CHANCE, battle.GATHER_DROP_CHANCE]
 	for i in range(kind_scenes.size()):
@@ -463,7 +459,7 @@ func _consumables() -> void:
 				break
 		_expect(found >= 0, "可由独立随机流抽到道具")
 		battle._consumable_rng.seed = found
-		var wolf: Enemy = battle._spawn_enemy_at(battle._wolf_pool, Vector3(-250 + i * 500, 0, -135))
+		var wolf: Enemy = battle._spawn_enemy_at(battle._wolf_pool, Vector2(-250 + i * 500, -135))
 		wolf.stone_drop_chance = 0.0
 		wolf.equipment_chance = 0.0
 		wolf.take_damage(wolf.max_health)
@@ -475,10 +471,10 @@ func _consumables() -> void:
 	var heal: MagnetPickup = green[0]
 	var gather: MagnetPickup = purple[0]
 	var gold: MagnetPickup = battle._stone_pool.acquire()
-	gold.drop(Vector3(-5000, 0, 0), player, 37)
+	gold.drop(Vector2(-5000, 0), player, 37)
 	var blue: MagnetPickup = battle._cultivation_stone_pool.acquire()
-	blue.drop(Vector3(5000, 0, 0), player, 8)
-	battle._drop_equipment(Vector3(1500, 0, 0), V4_ITEM.duplicate(true))
+	blue.drop(Vector2(5000, 0), player, 8)
+	battle._drop_equipment(Vector2(1500, 0), V4_ITEM.duplicate(true))
 	battle._xp_required = 100 # 验收图截取结算前的反馈，真正连升由正常阈值测试。
 	player.health = player.max_health - 100
 	battle._hud.set_health(player.health, player.max_health)
@@ -503,7 +499,7 @@ func _consumables() -> void:
 	battle._xp = 0
 	battle._xp_required = 20
 	blue = battle._cultivation_stone_pool.acquire()
-	blue.drop(Vector3(5000, 0, 20), player, 60)
+	blue.drop(Vector2(5000, 20), player, 60)
 	gather = battle._gather_pool.acquire()
 	gather.drop(player.global_position, player)
 	gather._physics_process(0.35)
@@ -518,7 +514,7 @@ func _consumables() -> void:
 	boss.take_damage(boss.max_health)
 	await create_timer(0.58, true, false, true).timeout
 	blue = battle._cultivation_stone_pool.acquire()
-	blue.drop(Vector3(5000, 0, 20), player, 100)
+	blue.drop(Vector2(5000, 20), player, 100)
 	gather = battle._gather_pool.acquire()
 	gather.drop(player.global_position, player)
 	gather._physics_process(0.35)
@@ -569,12 +565,12 @@ func _stress() -> void:
 	for j in range(5):
 		_expect(_save.breakthrough() == OK, "压测解锁")
 	var battle := await _battle("source")
-	var player: Node3D = battle._player
+	var player: Node2D = battle._player
 	player.accepts_damage = false
 	battle._elapsed = 239.99
 	battle._physics_process(0.02)
 	var boss: DemonLord = battle._living_enemies.filter(func(enemy: Enemy) -> bool: return enemy is DemonLord)[0]
-	boss.global_position = Vector3(160, 0, -380)
+	boss.global_position = Vector2(160, -380)
 	boss.take_damage(24000)
 	var skills: Node = battle._skills
 	skills._learned = Catalog.SKILLS
@@ -591,7 +587,7 @@ func _stress() -> void:
 	for i in range(150):
 		if battle._active_enemy_count >= battle.MAX_ENEMIES:
 			break
-		var at := Vector3((i % 11 - 5.0) * 42.0, 0.0, (floori(i / 11.0) - 7.0) * 49.0)
+		var at := Vector2((i % 11 - 5.0) * 42.0, (floori(i / 11.0) - 7.0) * 49.0)
 		var pool: RefCounted = battle._crow_pool if i % 3 == 0 else battle._wolf_pool
 		var enemy: Enemy = battle._spawn_enemy_at(pool, at)
 		enemies.append(enemy)
@@ -609,7 +605,7 @@ func _stress() -> void:
 	skills._ascension._clocks.bell = 0.20
 	skills.set_physics_process(true)
 	await create_timer(0.52).timeout
-	var cam: Camera3D = battle._camera.presentation
+	var cam: Node2D = battle._camera
 	var start := Time.get_ticks_usec()
 	var last := start
 	var frames := PackedFloat32Array()
@@ -622,17 +618,19 @@ func _stress() -> void:
 	var fps := float(frames.size()) * 1000000.0 / (last - start)
 	var p95 := frames[floori((frames.size() - 1) * 0.95)]
 	var visible_count: int = battle._living_enemies.filter(func(enemy: Enemy) -> bool:
-		return root.get_visible_rect().has_point(cam.unproject_position(enemy.global_position))).size()
+		return root.get_visible_rect().has_point(cam.screen_at(enemy.global_position))).size()
 	print("V5 DESKTOP STRESS: active=%d visible=%d frames=%d mean=%.2f FPS p95=%.2f ms" % [
 		battle._active_enemy_count, visible_count, frames.size(), fps, p95])
 	_expect(battle._active_enemy_count == 150 and visible_count >= 145 and skills.slots().size() == 8,
 		"150 活怪、至少 145 进入视口，八功法运行")
+	if not _out.is_empty():
+		_expect(fps >= 60.0, "V5.5 Windows 性能红线 60 FPS")
 	skills._cast_lightning(5)
 	skills._cast_fire(5)
 	skills._ascension._cast_bell(4)
 	_mark(battle, Vector2(42, 420), "Windows 150 怪 · 8 功法\n采样期平均 %.1f FPS / P95 %.1f ms\n活怪 %d · 视口 %d" % [
 		fps, p95, battle._active_enemy_count, visible_count])
-	await _capture("验收04-Windows百五十怪技能全开")
+	await _capture("验收10-一百五十怪八功法性能")
 
 
 func _battle(id: String) -> Node:
@@ -659,7 +657,7 @@ func _change(scene: Node) -> Node:
 func _enemy_health(battle: Node, enemy: Enemy, text: String) -> void:
 	if _out.is_empty():
 		return
-	var at: Vector2 = battle._camera.presentation.unproject_position(enemy.global_position + Vector3.UP * 50)
+	var at: Vector2 = battle._camera.screen_at(enemy.global_position + Vector2.UP * 50)
 	var bar := ProgressBar.new()
 	bar.show_percentage = false
 	bar.position = at + Vector2(5, -16)

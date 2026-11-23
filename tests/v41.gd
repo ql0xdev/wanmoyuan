@@ -327,14 +327,14 @@ func _test_stress() -> void:
 	battle._spawns._next_wave = 240.0
 	battle._spawns._next_golem = 240.0
 	battle._physics_process(0.06)
-	var center: Vector3 = battle._player.global_position
+	var center: Vector2 = battle._player.global_position
 	for enemy in battle._living_enemies:
 		if enemy is DemonLord:
-			enemy.global_position = center + Vector3(55, 0, -285)
+			enemy.global_position = center + Vector2(55, -285)
 			enemy.take_damage(24000)
 	while battle._active_enemy_count < 100:
 		var i: int = battle._active_enemy_count
-		var at := center + Vector3(cos(i * TAU / 73), 0, sin(i * TAU / 73)) * (280.0 + i % 4 * 115)
+		var at := center + Vector2.from_angle(i * TAU / 73) * (280.0 + i % 4 * 115)
 		battle._spawn_kind_at(SpawnManager.Kind.CROW if i % 2 == 0 else SpawnManager.Kind.WOLF, at)
 	for i in range(Equipment.BAG_CAPACITY):
 		_pickup(battle, GREEN)

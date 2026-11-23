@@ -34,7 +34,7 @@ func warning_active() -> bool:
 	return _warned
 
 
-func advance(previous: float, now: float, center: Vector3, warn: Callable,
+func advance(previous: float, now: float, center: Vector2, warn: Callable,
 		spawn_regular: Callable, spawn_at: Callable, spawn_wave := Callable()) -> void:
 	_progress += (now - previous) / interval_at(previous)
 	while now + EPSILON >= _next_wave - WARNING_LEAD:
@@ -69,7 +69,7 @@ func advance(previous: float, now: float, center: Vector3, warn: Callable,
 	_progress = minf(_progress, 1.0)
 
 
-func queue_summon(origin: Vector3) -> void:
+func queue_summon(origin: Vector2) -> void:
 	for i in range(6):
 		_summon_mix += _abyss.crow_percent
 		var kind := Kind.CROW if _summon_mix >= 100 else Kind.WOLF

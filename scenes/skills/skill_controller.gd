@@ -1,4 +1,4 @@
-extends Node3D
+extends Node2D
 
 const Player = preload("res://scenes/player.gd")
 const Enemy = preload("res://scenes/enemies/enemy.gd")
@@ -10,6 +10,7 @@ const Catalog = preload("res://scripts/cultivation_catalog.gd")
 const Upgrades = preload("res://scripts/upgrade_catalog.gd")
 const Aura = preload("res://scenes/skills/aura_damage.gd")
 const DamageBatch = preload("res://scenes/skills/damage_batch.gd")
+const FireField = preload("res://scenes/skills/fire_field.gd")
 const Skill = Catalog.Skill
 
 signal swords_cast
@@ -60,14 +61,13 @@ var _sword_left := SWORD_INTERVAL
 var _lightning_left := LIGHTNING_INTERVAL
 var _heal_left := 0.0
 var _flash_left := 0.0
-var _lightning_points := PackedVector3Array()
+var _lightning_points := PackedVector2Array()
 var _orbit_angle := 0.0
-var _orb_offsets := PackedVector3Array()
+var _orb_offsets := PackedVector2Array()
 var _orb_aura := Aura.new()
 var _storm_left := STORM_INTERVAL
 var _fire_left := FIRE_INTERVAL
 var _fire_zones: Array[Dictionary] = []
-var _fire_mesh: CylinderMesh
 
 
 func configure(player: Player, enemies: Array[Enemy], launch_sword: Callable, camera: BattleCamera,
@@ -85,7 +85,7 @@ func configure(player: Player, enemies: Array[Enemy], launch_sword: Callable, ca
 	_selected.clear()
 	_selected.append(Skill.SWORD)
 	_levels[Skill.SWORD] = 1
-	_visuals.setup(ORB_RADIUS, ICE_RADIUS, LIGHTNING_RADIUS, Catalog.cast_count(CAP + 2, CAP), Catalog.cast_count(CAP, CAP))
+	_visuals.setup(ORB_RADIUS, ICE_RADIUS, LIGHTNING_RADIUS)
 	_ascension = AscensionSkills.new(_player, _enemies, _visuals, batch)
 	_player.dashed.connect(_ascension.on_dash_step)
 	_player.hit.connect(_try_blink)
@@ -324,16 +324,17 @@ func _cast_swords(level: int) -> void:
 	# 多把剑错开出剑位置，但仍瞄准同一个最近的敌人。
 	for i in range(count):
 		var lateral := (float(i) - (count - 1) * 0.5) * 18.0
-		var start := origin + direction.cross(Vector3.UP) * lateral - direction * (i * 22.0)
+		var start := origin + Vector2(-direction.y, direction.x) * lateral - direction * (i * 22.0)
 		_launch_sword.call(start, start.direction_to(target), damage, Catalog.range_factor(level))
 	swords_cast.emit()
 
 
 func _cast_lightning(level: int) -> void:
 	var view := get_viewport().get_visible_rect()
-	var candidates := PackedVector3Array()
+	var world_view := _camera.world_view()
+	var candidates := PackedVector2Array()
 	for enemy in _enemies:
-		if not _camera.is_position_behind(enemy.global_position) and view.has_point(_camera.unproject_position(enemy.global_position)):
+		if world_view.has_point(enemy.global_position):
 			candidates.append(enemy.global_position)
 	var damage := _player.stats.damage(LIGHTNING_DAMAGE[level - 1])
 	_lightning_points.clear()
@@ -341,7 +342,7 @@ func _cast_lightning(level: int) -> void:
 	var radius := LIGHTNING_RADIUS * reach
 	# 随机选屏内敌人落雷；可用目标不足时，余下的雷随机落在屏内。
 	for i in range(Catalog.cast_count(level, level)):
-		var point: Vector3
+		var point: Vector2
 		if not candidates.is_empty():
 			var index := randi_range(0, candidates.size() - 1)
 			point = candidates[index]
@@ -401,25 +402,11 @@ func _cast_storm(level: int) -> void:
 func _cast_fire(level: int) -> void:
 	if _enemies.is_empty():
 		return
-	if _fire_mesh == null:
-		_fire_mesh = CylinderMesh.new()
-		_fire_mesh.top_radius = FIRE_RADIUS
-		_fire_mesh.bottom_radius = FIRE_RADIUS
-		_fire_mesh.height = 0.8
-		_fire_mesh.radial_segments = 32
-		var material := StandardMaterial3D.new()
-		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		material.albedo_color = Color("#ff7b38")
-		material.albedo_color.a = 0.38
-		_fire_mesh.material = material
 	var target := _enemies[randi_range(0, _enemies.size() - 1)].global_position
-	var visual := MeshInstance3D.new()
-	visual.mesh = _fire_mesh
-	visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var visual := FireField.new()
 	add_child(visual)
-	visual.global_position = target + Vector3.UP
-	visual.scale = Vector3.ONE * Catalog.range_factor(level)
+	visual.global_position = target
+	visual.display(FIRE_RADIUS * Catalog.range_factor(level), 0.0)
 	var aura := Aura.new()
 	aura.step(0.0, target, FIRE_RADIUS * Catalog.range_factor(level), 0, _enemies, _batch)
 	_fire_zones.append({"center": target, "visual": visual, "seconds": 0.0, "aura": aura})
@@ -431,7 +418,7 @@ func _update_fire(delta: float, level: int) -> void:
 		var reach := Catalog.range_factor(level)
 		var radius := FIRE_RADIUS * reach
 		var damage := Aura.tick_amount(_player.stats.damage(FIRE_DAMAGE[level - 1]))
-		zone.visual.scale = Vector3(reach, 0.8 + 0.35 * sin(zone.seconds * TAU * 2.0), reach)
+		zone.visual.display(radius, zone.seconds)
 		if zone.aura.step(minf(delta, FIRE_DURATION - zone.seconds), zone.center, radius, damage, _enemies, _batch):
 			_visuals.pulse(zone.center, radius, Color("#ff9b58"))
 		zone.seconds += delta

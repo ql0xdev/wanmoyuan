@@ -67,13 +67,13 @@ func _test_spawn_rules() -> void:
 	for id: String in Catalog.ABYSSES:
 		var abyss: Dictionary = Catalog.ABYSSES[id]
 		var spawns := SpawnManager.new(abyss)
-		var center := Vector3(123, 0, -187)
+		var center := Vector2(123, -187)
 		var state := {"warnings": 0, "slots": 2}
-		var ring: Array[Vector3] = []
+		var ring: Array[Vector2] = []
 		var mix: Array[int] = []
 		var warnings := func() -> void: state.warnings += 1
 		var deny := func(_kind: int) -> bool: return false
-		var batch := func(kind: int, at: Vector3) -> bool:
+		var batch := func(kind: int, at: Vector2) -> bool:
 			if ring.size() >= state.slots:
 				return false
 			ring.append(at)
@@ -89,10 +89,10 @@ func _test_spawn_rules() -> void:
 		var count: int = [23, 27, 30, 34, 40][index]
 		_expect(ring.size() == 2 and spawns._waves.size() == count - 2, id + " 满员时超出的兽潮排队")
 		state.slots = 100
-		spawns.advance(60, 60.1, Vector3.ZERO, warnings, deny, batch)
+		spawns.advance(60, 60.1, Vector2.ZERO, warnings, deny, batch)
 		_expect(ring.size() == count and spawns._waves.is_empty(), id + " 补齐整波")
 		for i in range(ring.size()):
-			var expected := Vector3(cos(TAU * i / count), 0, sin(TAU * i / count)) * 700
+			var expected := Vector2.from_angle(TAU * i / count) * 700
 			_expect((ring[i] - center).distance_to(expected) < 0.02, id + " 原玩家位置 700 环形等角")
 		_expect(mix.count(SpawnManager.Kind.GOLEM) == [0, 0, 0, 1, 2][index]
 			and mix.count(SpawnManager.Kind.CROW) == floori(float(abyss.wave_count * abyss.crow_percent) / 100), id + " 兽潮混编")
@@ -186,15 +186,15 @@ func _test_layer(id: String, stage_demo := false, arrival := "", loot := "") -> 
 	battle._physics_process(0.04)
 	var boss := _boss(battle)
 	_expect(battle._boss_spawned and boss.max_health == maximum and int(battle._hud._boss_bar.max_value) == maximum, id + " 按时生成 Boss 及精确血量")
-	boss.global_position = battle._player.global_position + Vector3(30, 0, -250)
+	boss.global_position = battle._player.global_position + Vector2(30, -250)
 	boss.set_physics_process(false)
 	if not arrival.is_empty() and not _output.is_empty():
 		await create_timer(0.30).timeout
 		await _capture(arrival)
 	if stage_demo:
 		await _test_boss_stages(battle, boss)
-	var origin: Vector3 = battle._player.global_position
-	boss.global_position = origin + Vector3(12, 0, -170)
+	var origin: Vector2 = battle._player.global_position
+	boss.global_position = origin + Vector2(12, -170)
 	boss.take_damage(boss.max_health)
 	var drops := _drops(battle)
 	var base_tier: int = Catalog.ABYSSES[id].tier
@@ -206,7 +206,7 @@ func _test_layer(id: String, stage_demo := false, arrival := "", loot := "") -> 
 	var amount: int = {"outer": 200, "middle": 400, "inner": 800, "deep": 1600, "source": 3200}[id]
 	await create_timer(0.57, true, false, true).timeout
 	_expect(battle._phase == battle.Phase.VICTORY_LOOT and not battle._settlement_saved, id + " 胜利慢镜后恢复拾取")
-	for drop: Node3D in drops:
+	for drop: Node2D in drops:
 		battle._player.global_position = drop.global_position
 		drop._physics_process(0.18)
 	for stone: Node in battle.get_node("Pickups").get_children():
@@ -263,19 +263,19 @@ func _test_boss_stages(battle: Node, boss: DemonLord) -> void:
 	boss._update_attack(0.01)
 	boss._update_attack(0.99)
 	_expect(boss.stage == 3 and boss._motion == DemonLord.Motion.WINDUP and is_equal_approx(boss._charge_left, 11.01)
-		and boss.get_node("Body").material_override == boss.FLASH_MATERIAL, "50% 冲锋预警发亮一秒")
+		and boss.get_node("Body").windup, "50% 冲锋预警发亮一秒")
 	await _capture("05-三阶段冲锋蓄力")
 	boss._update_attack(0.01)
 	_expect(boss._motion == DemonLord.Motion.CHARGE, "满一秒后开始冲锋")
-	var position_before: Vector3 = boss.global_position
+	var position_before: Vector2 = boss.global_position
 	boss._physics_process(1.0 / 60.0)
 	_expect(boss.global_position.distance_to(position_before) > 8.0, "冲锋实际位移")
-	boss.global_position = battle._player.global_position + Vector3.RIGHT * 56.0
+	boss.global_position = battle._player.global_position + Vector2.RIGHT * 56.0
 	battle._player._invulnerable_left = 0.0
 	var health: int = battle._player.health
 	boss._update_attack(0.015)
 	_expect(health - battle._player.health == 60, "冲锋命中 2× 接触伤害")
-	boss.global_position = battle._player.global_position + Vector3(30, 0, -255)
+	boss.global_position = battle._player.global_position + Vector2(30, -255)
 	boss.take_damage(200)
 	var flames: int = events.flames
 	boss._update_attack(0.01)
@@ -379,7 +379,7 @@ func _test_effect(battle: Node, id: String) -> void:
 	var v4: RefCounted = skills._ascension
 	var player: Player = battle._player
 	var origin := player.global_position
-	var wolf: Node = battle._spawn_enemy_at(battle._wolf_pool, origin + Vector3.RIGHT * 72)
+	var wolf: Node = battle._spawn_enemy_at(battle._wolf_pool, origin + Vector2.RIGHT * 72)
 	wolf.set_physics_process(false)
 	wolf._health = 1000
 	match id:
@@ -410,12 +410,12 @@ func _test_effect(battle: Node, id: String) -> void:
 			_expect(player.health == 100, "满级生生不息周期回血翻倍")
 		"dash":
 			v4._cast_dash(2)
-			v4.on_dash_step(origin, origin + Vector3.RIGHT * 80)
+			v4.on_dash_step(origin, origin + Vector2.RIGHT * 80)
 			player.take_damage(20)
 			_expect(wolf._health == 865 and player.health == 100 and v4._clocks.dash == 1.5, "瞬影三倍伤害、1.5 秒、途中无敌")
 		"wisp":
 			v4._update_wisps(0.0, 5)
-			_expect(skills._visuals._wisps.filter(func(node: Node3D): return node.visible).size() == 15, "满级九幽鬼火十五团")
+			_expect(skills._visuals._wisps.size() == 15, "满级九幽鬼火十五团")
 			await _capture("19-效果-九幽焚天")
 			v4._update_wisps(0.5, 5)
 			_expect(wolf._health == 982, "九幽原爆伤 30 的 60% 每半秒")
@@ -438,18 +438,18 @@ func _test_base_skills() -> void:
 	var player: Player = battle._player
 	player.stats.configure("qi_refining", {}, {})
 	var origin := player.global_position
-	var wolf: Node = battle._spawn_enemy_at(battle._wolf_pool, origin + Vector3.RIGHT * 72)
+	var wolf: Node = battle._spawn_enemy_at(battle._wolf_pool, origin + Vector2.RIGHT * 72)
 	wolf.set_physics_process(false)
 	wolf._health = 1000
 	for id: int in [Skill.DASH, Skill.WISP, Skill.BELL, Skill.SHIELD]:
 		skills.apply_upgrade(id)
 	var v4: RefCounted = skills._ascension
 	v4.update(0.0, 2.5, skills._levels)
-	_expect(skills._visuals._wisps[0].visible and player._dash_left == 0.0, "基础鬼火环绕")
+	_expect(skills._visuals._wisps.has(0) and player._dash_left == 0.0, "基础鬼火环绕")
 	v4.update(0.5, 0.5, skills._levels)
 	_expect(wolf._health == 989 and player._dash_left > 0.0 and not player._dash_invincible, "基础鬼火跳伤 11，基础突进 3 秒")
-	v4.on_dash_step(origin, origin + Vector3.RIGHT * 90)
-	v4.on_dash_step(origin, origin + Vector3.RIGHT * 95)
+	v4.on_dash_step(origin, origin + Vector2.RIGHT * 90)
+	v4.on_dash_step(origin, origin + Vector2.RIGHT * 95)
 	_expect(wolf._health == 969, "基础突进路径单次 20 伤害")
 	v4.update(0.0, 3.0, skills._levels)
 	_expect(wolf._health == 954 and wolf._slow_factor == 0.6 and wolf._slow_left == 2.0, "基础铃铛第六秒伤害和减速")
@@ -497,18 +497,18 @@ func _test_stress() -> void:
 	battle._skills.set_physics_process(true)
 	battle._skills._levels[Skill.SWORD] = 0
 	battle._player.accepts_damage = false # 固定模拟不因死亡结束；怪物及弹道依然真实运行。
-	var center: Vector3 = battle._player.global_position
+	var center: Vector2 = battle._player.global_position
 	battle._elapsed = 239.95
 	battle._spawns._next_wave = 240.0
 	battle._spawns._next_golem = 240.0
 	battle._physics_process(0.02)
 	battle._physics_process(0.04)
 	var boss := _boss(battle)
-	boss.global_position = center + Vector3(55, 0, -275)
+	boss.global_position = center + Vector2(55, -275)
 	boss.take_damage(24000)
 	while battle._active_enemy_count < 100:
 		var i: int = battle._active_enemy_count
-		var at := center + Vector3(cos(i * TAU / 73), 0, sin(i * TAU / 73)) * (280.0 + i % 4 * 115)
+		var at := center + Vector2.from_angle(i * TAU / 73) * (280.0 + i % 4 * 115)
 		battle._spawn_kind_at(SpawnManager.Kind.CROW if i % 2 == 0 else SpawnManager.Kind.WOLF, at)
 	_expect(battle._active_enemy_count == 100 and boss.stage == 4, "五层 240 秒实际兽潮、100 怪及四阶段")
 	var shots := {"barrages": 0}

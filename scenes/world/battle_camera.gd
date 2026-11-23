@@ -1,29 +1,35 @@
-extends Camera3D
+extends Camera2D
 
 const FOLLOW_SPEED := 7.0
-const FOLLOW_OFFSET := Vector3(0.0, 935.0, 935.0) * 1.4
-const GROUND := Plane(Vector3.UP, 0.0)
-const VIEW_FRAMING := 1.0 / 3.0
+const VIEW_WIDTH := 1122.1
+const VIEW_ZOOM := 720.0 / VIEW_WIDTH
 const Look = preload("res://scenes/ui/ui_look.gd")
 
-@onready var presentation: Camera3D = $Presentation
-var focus := Vector3.ZERO
-var _view_offset := 0.0
+var focus := Vector2.ZERO
+var _framing := Vector2.ZERO
+var _shake := Vector2.ZERO
 var _shake_tween: Tween
 
 
 func _ready() -> void:
-	# 渲染构图不参与刷怪或落雷的投影；这两个系统仍使用父镜头。
-	_view_offset = FOLLOW_OFFSET.length() * tan(deg_to_rad(presentation.fov * 0.5)) * VIEW_FRAMING
-	presentation.v_offset = _view_offset
+	zoom = Vector2.ONE * VIEW_ZOOM
+	get_viewport().size_changed.connect(_refresh_framing)
+	_refresh_framing()
 
 
-func snap_to(target: Vector3) -> void:
+func _refresh_framing() -> void:
+	_framing = Vector2.UP * get_viewport_rect().size.y * 0.12 / VIEW_ZOOM
+	offset = _framing + _shake
+	force_update_scroll()
+
+
+func snap_to(target: Vector2) -> void:
 	focus = target
-	global_position = focus + FOLLOW_OFFSET
+	global_position = focus
+	force_update_scroll()
 
 
-func follow(target: Vector3, delta: float) -> void:
+func follow(target: Vector2, delta: float) -> void:
 	snap_to(focus.lerp(target, minf(delta * FOLLOW_SPEED, 1.0)))
 
 
@@ -35,17 +41,20 @@ func shake_view() -> void:
 
 
 func _apply_view_shake(progress: float) -> void:
-	var offset := Look.shake_offset(progress, 24.0)
-	presentation.h_offset = offset.x
-	presentation.v_offset = _view_offset + offset.y
+	_shake = Look.shake_offset(progress, 24.0)
+	offset = _framing + _shake
+	force_update_scroll()
 
 
-func ground_at(screen: Vector2) -> Vector3:
-	var ray_origin := project_ray_origin(screen)
-	var ray_direction := project_ray_normal(screen)
-	var hit: Variant = GROUND.intersects_ray(ray_origin, ray_direction)
-	if hit is Vector3:
-		# 不依赖浮点求交返回的 y 值，战斗实体都严格留在同一平面。
-		return Vector3(hit.x, 0.0, hit.z)
-	# 极端窗口尺寸下若射线越过地平线，仍落到镜头前方地面。
-	return focus + Vector3(ray_direction.x, 0.0, ray_direction.z).normalized() * far * 0.5
+func screen_at(world_point: Vector2) -> Vector2:
+	return get_canvas_transform() * world_point
+
+
+func ground_at(screen_point: Vector2) -> Vector2:
+	return get_canvas_transform().affine_inverse() * screen_point
+
+
+func world_view() -> Rect2:
+	var view := get_viewport_rect()
+	var start := ground_at(view.position)
+	return Rect2(start, ground_at(view.end) - start)

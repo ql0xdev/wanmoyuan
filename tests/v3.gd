@@ -114,7 +114,7 @@ func _test_play(save: Node) -> void:
 	var battle := current_scene
 	await process_frame
 	_drop_stones(battle, 270, battle._player.global_position)
-	_drop_stones(battle, 50, battle._player.global_position + Vector3(750, 0, 0))
+	_drop_stones(battle, 50, battle._player.global_position + Vector2(750, 0))
 	await _test_battle_menu(battle, save)
 	battle._player.take_damage(70)
 	_tap(battle, battle._hud.shop_button)
@@ -155,7 +155,7 @@ func _test_play(save: Node) -> void:
 	_expect(not paused and save.spirit_stones() == 120 and battle._spirit_stones == 0 and battle._xp == 0
 		and battle._inventory.worn.is_empty() and battle._player.stats.damage(100) == 100, "重开清理局内状态")
 	_drop_stones(battle, 200, battle._player.global_position)
-	await _defeat_boss(battle, Vector3(750, 0, 0))
+	await _defeat_boss(battle, Vector2(750, 0))
 	_expect(save.spirit_stones() == 520 and save.equipment_count() == 3 and save.has_cleared("outer"),
 		"胜利带回已拾灵石，魔尊掉落另当帧入账")
 	_button(RESULT_CONTENT + "Cave").pressed.emit()
@@ -199,7 +199,7 @@ func _test_play(save: Node) -> void:
 	_pick_ground_gear(battle, drops[0])
 	_expect(battle._inventory.new_loot().size() == 1 and battle._inventory.new_loot()[0].tier == 1, "拾取后进入行囊")
 	_drop_stones(battle, 1600, battle._player.global_position)
-	await _defeat_boss(battle, Vector3.ZERO)
+	await _defeat_boss(battle, Vector2.ZERO)
 	_expect(save.spirit_stones() == 2020 and save.has_cleared("middle") and save.equipment_count() == 6, "中渊魔尊灵石倍率、通关进度与掉装")
 	_button(RESULT_CONTENT + "Cave").pressed.emit()
 	await scene_changed
@@ -215,7 +215,7 @@ func _test_play(save: Node) -> void:
 	var inner_wolf: Node = battle._spawn_enemy(battle._wolf_pool)
 	_expect(inner_wolf.max_health == 120 and inner_wolf.damage == 40 and is_equal_approx(battle._spawn_interval(0.0), 1.0), "内渊数值")
 	_test_fire_and_blink(battle)
-	await _defeat_boss(battle, Vector3.ZERO)
+	await _defeat_boss(battle, Vector2.ZERO)
 	_expect(save.spirit_stones() == 820 and save.has_cleared("inner") and save.equipment_count() == 8, "内渊结算与稀有层级")
 	_button(RESULT_CONTENT + "Restart").pressed.emit()
 	await scene_changed
@@ -252,7 +252,7 @@ func _test_storm_and_card_pool(battle: Node) -> void:
 	var skills: Node = battle._skills
 	var launches := []
 	var initial_launch: Callable = skills._launch_sword
-	skills._launch_sword = func(_origin: Vector3, direction: Vector3, amount: int, _reach: float) -> void:
+	skills._launch_sword = func(_origin: Vector2, direction: Vector2, amount: int, _reach: float) -> void:
 		launches.append([direction, amount])
 	skills._cast_storm(1)
 	skills._launch_sword = initial_launch
@@ -282,7 +282,7 @@ func _test_retreat(save: Node) -> void:
 	var battle := current_scene
 	await process_frame
 	_drop_stones(battle, 200, battle._player.global_position)
-	_drop_stones(battle, 500, battle._player.global_position + Vector3(750, 0, 0))
+	_drop_stones(battle, 500, battle._player.global_position + Vector2(750, 0))
 	battle._open_shop()
 	battle._shop_menu.purchase_requested.emit("rage")
 	battle._close_shop()
@@ -291,10 +291,10 @@ func _test_retreat(save: Node) -> void:
 	battle._gear_menu._select(-1)
 	battle._gear_menu._equip.pressed.emit()
 	battle._close_gear()
-	var golem: Node = battle._spawn_enemy_at(battle._golem_pool, Vector3(600, 0, 0))
+	var golem: Node = battle._spawn_enemy_at(battle._golem_pool, Vector2(600, 0))
 	golem.take_damage(golem.max_health)
 	_pick_ground_gear(battle, _ground_gear(battle)[0])
-	var uncollected_golem: Node = battle._spawn_enemy_at(battle._golem_pool, Vector3(760, 0, 0))
+	var uncollected_golem: Node = battle._spawn_enemy_at(battle._golem_pool, Vector2(760, 0))
 	uncollected_golem.take_damage(uncollected_golem.max_health)
 	_expect(battle._inventory.new_loot().size() == 2 and battle._spirit_stones == 100,
 		"本局有穿戴和行囊里的新装备，地上有未拾取的装备和灵石")
@@ -331,14 +331,14 @@ func _test_retreat(save: Node) -> void:
 
 func _test_fire_and_blink(battle: Node) -> void:
 	var skills: Node = battle._skills
-	var enemy: Node3D = battle._living_enemies[0]
+	var enemy: Node2D = battle._living_enemies[0]
 	var original: int = enemy._health
 	skills._cast_fire(1)
 	skills._update_fire(3.0, 1)
 	_expect(enemy._health == maxi(0, original - 6 * roundi(battle._player.stats.damage(12) * 0.60))
 		and skills._fire_zones.is_empty(), "离火印持续三秒、每半秒结算")
 	skills.apply_upgrade(Skill.BLINK)
-	var start: Vector3 = battle._player.global_position
+	var start: Vector2 = battle._player.global_position
 	seed(765)
 	for i in range(100):
 		skills._try_blink()
@@ -359,30 +359,30 @@ func _test_ground_loot() -> void:
 		var stats := ["damage", "cooldown", "mitigation"]
 		for i in range(quality):
 			item.affixes[stats[i]] = 0.1
-		battle._drop_equipment(Vector3(-180.0 + quality * 120.0, 0.0, -320.0), item)
-	for drop: Node3D in _ground_gear(battle):
+		battle._drop_equipment(Vector2(-180.0 + quality * 120.0, -320.0), item)
+	for drop: Node2D in _ground_gear(battle):
 		var quality: int = drop._item.quality
 		drop_by_quality[quality] = drop
 		_expect(drop.display_name == Equipment.title(drop._item) and drop.quality_color == Equipment.COLORS[quality]
 			and battle._effects._ground_equipment.has(drop), "地面装备有对应的品质色全名")
-		_expect(drop._glow.visible == (quality > 0) and drop._marker.material_override.emission_enabled == (quality > 0),
+		_expect(drop._glow.visible == (quality > 0) and drop._marker.tint == Equipment.COLORS[quality],
 			"白装无光柱也不自发光，绿蓝紫装发光")
 		if quality > 0:
-			_expect(drop._glow.material_override.get_shader_parameter("tint") == Equipment.COLORS[quality], "光柱使用对应品质色")
+			_expect(drop._glow.tint == Equipment.COLORS[quality], "光柱使用对应品质色")
 		drop._physics_process(3.0)
 	_expect(drop_by_quality.size() == 4 and _ground_gear(battle).size() == 4
 		and battle._inventory.bag.is_empty(), "站远处不拾取，落地三秒不会消失")
-	var purple: Node3D = drop_by_quality[3]
+	var purple: Node2D = drop_by_quality[3]
 	_pick_ground_gear(battle, purple)
 	_expect(not purple.visible and not battle._effects._ground_equipment.has(purple)
 		and battle._inventory.bag.size() == 1 and battle._inventory.bag[0].quality == 3,
 		"靠近只拾取一次，拿走即移除名字和光柱")
-	battle._drop_equipment(Vector3(240.0, 0.0, -320.0), WHITE_WEAPON.duplicate())
-	_expect(purple.visible and not purple._glow.visible and purple._glow.material_override == null
-		and not purple._marker.material_override.emission_enabled, "对象池复用紫装节点时不会让白装继承光效")
+	battle._drop_equipment(Vector2(240.0, -320.0), WHITE_WEAPON.duplicate())
+	_expect(purple.visible and not purple._glow.visible
+		and purple._marker.tint == Equipment.COLORS[0], "对象池复用紫装节点时不会让白装继承光效")
 	while battle._inventory.bag.size() < Equipment.BAG_CAPACITY:
 		battle._inventory.collect(WHITE_WEAPON.duplicate())
-	var blue: Node3D = drop_by_quality[2]
+	var blue: Node2D = drop_by_quality[2]
 	_expect(battle._spirit_stones == 0 and blue.visible, "满包时地面装备不提前分解")
 	_pick_ground_gear(battle, blue)
 	_expect(battle._spirit_stones == 40 and not blue.visible and battle._inventory.bag.size() == Equipment.BAG_CAPACITY,
@@ -396,10 +396,10 @@ func _test_evacuation(save: Node) -> void:
 	_expect(change_scene_to_file("res://scenes/main.tscn") == OK, "进入离场测试")
 	await scene_changed
 	var battle := current_scene
-	battle._spawn_enemy_at(battle._wolf_pool, Vector3(-260, 0, -250))
-	battle._drop_equipment(Vector3(1000, 0, 0), WHITE_WEAPON.duplicate())
-	_drop_stones(battle, 500, Vector3(1000, 0, 0))
-	_kill_boss(battle, Vector3(325, 0, 0))
+	battle._spawn_enemy_at(battle._wolf_pool, Vector2(-260, -250))
+	battle._drop_equipment(Vector2(1000, 0), WHITE_WEAPON.duplicate())
+	_drop_stones(battle, 500, Vector2(1000, 0))
+	_kill_boss(battle, Vector2(325, 0))
 	_expect(not battle._settlement_saved and save.spirit_stones() == 0, "魔尊击杀不提前结算")
 	await create_timer(0.65, true, false, true).timeout
 	_expect(not paused and Engine.time_scale == 1.0 and battle._phase == battle.Phase.VICTORY_LOOT
@@ -499,10 +499,10 @@ func _test_stress(save: Node) -> void:
 	_expect(battle.configure_run("inner") and change_scene_to_node(battle) == OK, "进入内渊")
 	await scene_changed
 	battle._player.accepts_damage = false
-	# 保持刷怪和 3D 逻辑运行；关闭出剑，避免击杀影响固定同屏负载。
+	# 保持刷怪和战斗物理运行；关闭出剑，避免击杀影响固定同屏负载。
 	battle._skills.set_physics_process(false)
 	for i in range(battle.MAX_ENEMIES):
-		var position_in_world := Vector3((i % 12 - 5.5) * 65.0, 0.0, (floori(i / 12.0) - 5.5) * 62.0)
+		var position_in_world := Vector2((i % 12 - 5.5) * 65.0, (floori(i / 12.0) - 5.5) * 62.0)
 		var pool: RefCounted = battle._crow_pool if i % 4 == 0 else battle._wolf_pool
 		battle._spawn_enemy_at(pool, position_in_world)
 	_expect(battle._active_enemy_count == 149, "怪满时为 240 秒魔尊预留位置")
@@ -542,29 +542,29 @@ func _tap(battle: Node, button: Control) -> void:
 	battle._joystick._input(event)
 
 
-func _drop_stones(battle: Node, amount: int, at: Vector3) -> void:
+func _drop_stones(battle: Node, amount: int, at: Vector2) -> void:
 	var stone: Node = battle._stone_pool.acquire()
 	stone.drop(at, battle._player, amount)
 	stone._physics_process(1.0 / 60.0)
 
 
 func _ground_gear(battle: Node) -> Array:
-	return battle.get_node("Pickups/EquipmentDrops").get_children().filter(func(drop: Node3D) -> bool: return drop.visible)
+	return battle.get_node("Pickups/EquipmentDrops").get_children().filter(func(drop: Node2D) -> bool: return drop.visible)
 
 
-func _pick_ground_gear(battle: Node, drop: Node3D) -> void:
-	var before: Vector3 = battle._player.global_position
+func _pick_ground_gear(battle: Node, drop: Node2D) -> void:
+	var before: Vector2 = battle._player.global_position
 	battle._player.global_position = drop.global_position
 	drop._physics_process(0.18)
 	battle._player.global_position = before
 
 
-func _defeat_boss(battle: Node, offset: Vector3) -> void:
-	var at: Vector3 = battle._player.global_position + offset
+func _defeat_boss(battle: Node, offset: Vector2) -> void:
+	var at: Vector2 = battle._player.global_position + offset
 	_kill_boss(battle, offset)
 	await create_timer(0.63, true, false, true).timeout
 	_expect(not paused and battle._phase == battle.Phase.VICTORY_LOOT, "胜利慢动作后开始拾取")
-	for drop: Node3D in _ground_gear(battle):
+	for drop: Node2D in _ground_gear(battle):
 		if drop.global_position.distance_squared_to(at) < 35.0 * 35.0:
 			_pick_ground_gear(battle, drop)
 	for stone: Node in battle.get_node("Pickups").get_children():
@@ -576,12 +576,12 @@ func _defeat_boss(battle: Node, offset: Vector3) -> void:
 	_expect(paused and battle._result_menu.visible, "十秒结束后显示结果")
 
 
-func _kill_boss(battle: Node, offset: Vector3) -> void:
+func _kill_boss(battle: Node, offset: Vector2) -> void:
 	battle._elapsed = 239.95
 	battle._physics_process(0.02)
 	_expect(not battle._boss_spawned, "240 秒之前不刷魔尊")
 	battle._physics_process(0.04)
-	var boss: Node3D = battle._living_enemies.filter(func(enemy: Node3D) -> bool: return enemy is DemonLord).front()
+	var boss: Node2D = battle._living_enemies.filter(func(enemy: Node2D) -> bool: return enemy is DemonLord).front()
 	var health: int = {"outer": 800, "middle": 2400, "inner": 6400}[battle._abyss_id]
 	_expect(battle._boss_spawned and boss.max_health == health and boss.period_multiplier == battle._abyss.boss_period, "240 秒刷对应魔尊")
 	boss.global_position = battle._player.global_position + offset

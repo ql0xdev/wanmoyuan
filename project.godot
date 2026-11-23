@@ -48,10 +48,6 @@ move_down={
 "events": [Object(InputEventKey,"physical_keycode":83), Object(InputEventKey,"keycode":4194322)]
 }
 
-[physics]
-
-3d/physics_engine="Jolt Physics"
-
 [gui]
 
 theme/custom="res://scenes/ui/menu_theme.tres"

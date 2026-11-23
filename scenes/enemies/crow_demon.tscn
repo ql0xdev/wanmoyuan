@@ -1,21 +1,15 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scenes/enemies/crow_demon.gd" id="1_crow"]
-[ext_resource type="SphereMesh" path="res://scenes/world/sphere_mesh.tres" id="2_sphere"]
+[ext_resource type="Script" path="res://scenes/world/actor_art.gd" id="2_art"]
 
-[sub_resource type="CylinderShape3D" id="CylinderShape3D_crow"]
+[sub_resource type="CircleShape2D" id="CircleShape2D_crow"]
 radius = 16.0
-height = 32.0
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_crow"]
-albedo_color = Color(0.66, 0.39, 0.89, 1)
-roughness = 0.83
-
-[node name="CrowDemon" type="CharacterBody3D"]
+[node name="CrowDemon" type="CharacterBody2D"]
 collision_layer = 0
 collision_mask = 0
 motion_mode = 1
-axis_lock_linear_y = true
 safe_margin = 0.08
 script = ExtResource("1_crow")
 max_health = 12
@@ -24,12 +18,10 @@ damage = 8
 stone_drop_amount = 8
 stone_drop_chance = 0.2
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
-shape = SubResource("CylinderShape3D_crow")
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_crow")
 
-[node name="Body" type="MeshInstance3D" parent="."]
-position = Vector3(0, 48, 0)
-scale = Vector3(19, 13, 16)
-cast_shadow = 0
-material_override = SubResource("StandardMaterial3D_crow")
-mesh = ExtResource("2_sphere")
+[node name="Body" type="Node2D" parent="."]
+script = ExtResource("2_art")
+kind = 2
+tint = Color(0.69, 0.43, 0.89, 1)

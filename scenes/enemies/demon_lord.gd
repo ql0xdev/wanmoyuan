@@ -1,7 +1,7 @@
 extends "res://scenes/enemies/melee_enemy.gd"
 
-signal flame_cast(origin: Vector3, direction: Vector3, damage: int)
-signal minions_summoned(origin: Vector3)
+signal flame_cast(origin: Vector2, direction: Vector2, damage: int)
+signal minions_summoned(origin: Vector2)
 signal stage_changed(stage: int)
 signal action_started(action: String)
 
@@ -28,7 +28,7 @@ var _charge_left := 0.0
 var _barrage_left := 0.0
 var _motion := Motion.WALK
 var _motion_left := 0.0
-var _charge_direction := Vector3.ZERO
+var _charge_direction := Vector2.ZERO
 var _charge_hit := false
 
 
@@ -46,6 +46,8 @@ func take_damage(amount: int, critical := false) -> void:
 	super.take_damage(amount, critical)
 	while _health > 0 and stage <= THRESHOLDS.size() and float(_health) / max_health <= THRESHOLDS[stage - 1]:
 		stage += 1
+		_body.boss_stage = stage
+		_body.queue_redraw()
 		_flame_left /= 1.15
 		_attack_left /= 1.15
 		stage_changed.emit(stage)
@@ -55,9 +57,9 @@ func _contact_interval() -> float:
 	return ATTACK_INTERVAL / pow(1.15, stage - 1)
 
 
-func _move_velocity(delta: float) -> Vector3:
+func _move_velocity(delta: float) -> Vector2:
 	match _motion:
-		Motion.WINDUP: return Vector3.ZERO
+		Motion.WINDUP: return Vector2.ZERO
 		Motion.CHARGE: return _charge_direction * CHARGE_SPEED * speed_multiplier
 		_: return super._move_velocity(delta)
 
@@ -72,7 +74,8 @@ func _update_attack(delta: float) -> void:
 			_motion_left = CHARGE_DURATION
 			_charge_direction = global_position.direction_to(_target.global_position)
 			_charge_hit = false
-			_restore_material()
+			_body.windup = false
+			_body.queue_redraw()
 			action_started.emit("魔尊冲锋")
 	else:
 		var reach := body_radius + Player.BODY_RADIUS + CONTACT_MARGIN
@@ -101,7 +104,8 @@ func _update_attack(delta: float) -> void:
 			_charge_left = CHARGE_INTERVAL
 			_motion = Motion.WINDUP
 			_motion_left = WINDUP
-			_body.material_override = FLASH_MATERIAL
+			_body.windup = true
+			_body.queue_redraw()
 			action_started.emit("魔尊蓄力 · 冲锋")
 	if stage >= 4:
 		_barrage_left -= delta
@@ -113,6 +117,6 @@ func _update_attack(delta: float) -> void:
 
 func _cast_flames(step := FLAME_STEP) -> void:
 	var toward := _target.global_position - global_position
-	var angle := atan2(toward.z, toward.x)
+	var angle := toward.angle()
 	for i in range(FLAME_COUNT):
 		flame_cast.emit(global_position, BattlePlane.direction(angle + (float(i) - 2.0) * step), flame_damage)

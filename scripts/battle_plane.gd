@@ -4,10 +4,6 @@ extends RefCounted
 const OBSTACLE_LAYER := 1 << 2
 
 
-# 地面上 1 个 3D 单位对应 V2 的 1 像素；模型高度不参与碰撞或距离计算。
-static func direction(angle: float) -> Vector3:
-	return Vector3(cos(angle), 0.0, sin(angle))
-
-
-static func from_input(input: Vector2) -> Vector3:
-	return Vector3(input.x, 0.0, input.y)
+# 原来地面的 X/Z 分别对应 2D 的 X/Y；比例 1:1。
+static func direction(angle: float) -> Vector2:
+	return Vector2.from_angle(angle)

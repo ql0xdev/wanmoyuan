@@ -22,11 +22,11 @@ var _batch: DamageBatch
 var _wisp_aura := Aura.new()
 var _blade_aura := Aura.new()
 var _bell_aura := Aura.new()
-var _bell_center := Vector3.ZERO
+var _bell_center := Vector2.ZERO
 var _bell_left := 0.0
 var _wisp_angle := 0.0
 var _blade_angle := 0.0
-var _blade_offsets := PackedVector3Array()
+var _blade_offsets := PackedVector2Array()
 
 
 func _init(player: Player, enemies: Array[Enemy], visuals: Visuals, batch: DamageBatch) -> void:
@@ -102,7 +102,7 @@ func _cast_dash(tier: int) -> void:
 		_visuals.pulse(_player.global_position, 75.0, Color("#ffe5a2") if evolved else Color("#a4ecdd"))
 
 
-func on_dash_step(from: Vector3, to: Vector3) -> void:
+func on_dash_step(from: Vector2, to: Vector2) -> void:
 	if not _player.accepts_damage:
 		return
 	var base_radius: float = Catalog.SKILL_DATA.dash.radius * _dash_reach
@@ -113,7 +113,7 @@ func on_dash_step(from: Vector3, to: Vector3) -> void:
 		if _dash_hits.get(id, -1) == enemy.spawn_id:
 			continue
 		var radius := base_radius + enemy.body_radius
-		var nearest := Geometry3D.get_closest_point_to_segment(enemy.global_position, from, to)
+		var nearest := Geometry2D.get_closest_point_to_segment(enemy.global_position, from, to)
 		if nearest.distance_squared_to(enemy.global_position) <= radius * radius:
 			_dash_hits[id] = enemy.spawn_id
 			enemy.take_damage(_dash_damage)
@@ -141,7 +141,7 @@ func _update_wisps(delta: float, level: int) -> void:
 		_visuals.pulse(origin, radius, tint)
 
 
-func _nearest(origin: Vector3) -> Enemy:
+func _nearest(origin: Vector2) -> Enemy:
 	var best: Enemy
 	var nearest := INF
 	for enemy in _enemies:

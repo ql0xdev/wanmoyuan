@@ -1,9 +1,9 @@
-extends Node3D
+extends Node2D
 
 const Player = preload("res://scenes/player.gd")
 const Stats = preload("res://scripts/stats_manager.gd")
 
-signal collected(pickup: Node3D)
+signal collected(pickup: Node2D)
 
 const PICKUP_RADIUS := 16.0
 const MAGNET_DURATION := 0.35
@@ -12,21 +12,28 @@ const MAGNET_DURATION := 0.35
 
 var amount := 1
 var _target: Player
-var _drop_position := Vector3.ZERO
+var _drop_position := Vector2.ZERO
 var _magnet_elapsed := 0.0
 var _magnet_active := false
+var _reveal_left := 0.0
 
 
-func drop(at: Vector3, target: Player, value := 1) -> void:
+func drop(at: Vector2, target: Player, value := 1, reveal_delay := 0.0) -> void:
 	global_position = at
 	amount = value
 	_target = target
 	_drop_position = at
 	_magnet_elapsed = 0.0
 	_magnet_active = false
+	_reveal_left = reveal_delay
+	$Ink.visible = _reveal_left <= 0.0
 
 
 func _physics_process(delta: float) -> void:
+	if _reveal_left > 0.0:
+		_reveal_left -= delta
+		if _reveal_left <= 0.0:
+			$Ink.show()
 	if _target == null:
 		return
 

@@ -42,7 +42,7 @@ func _run() -> void:
 		battle._loot_rng.seed = 41001
 		var container := battle.get_node("Pickups/EquipmentDrops")
 		for pool in [battle._wolf_pool, battle._crow_pool, battle._golem_pool, battle._boss_pool]:
-			var enemy: Node3D = battle._spawn_enemy(pool)
+			var enemy: Node = battle._spawn_enemy(pool)
 			enemy.set_physics_process(false)
 			var rules := [id, enemy.equipment_count, enemy.equipment_chance, enemy.purple_chance]
 			fingerprint.update(JSON.stringify(rules).to_utf8_buffer())
@@ -50,7 +50,7 @@ func _run() -> void:
 				battle._roll_equipment(enemy)
 				calls += 1
 				var rolled := []
-				for item: Node3D in container.get_children():
+				for item: Node in container.get_children():
 					if not item.visible:
 						continue
 					# 新字段 star=0 不计入掉落判定指纹；其余逐项对照。

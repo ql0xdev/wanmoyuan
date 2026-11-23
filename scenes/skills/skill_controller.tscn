@@ -1,10 +1,11 @@
 [gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scenes/skills/skill_controller.gd" id="1_skills"]
-[ext_resource type="Script" path="res://scenes/skills/skill_visuals.gd" id="2_visuals"]
+[ext_resource type="Script" path="res://scenes/skills/skill_visuals.gd" id="2_draw"]
 
-[node name="SkillController" type="Node3D"]
+[node name="SkillController" type="Node2D"]
+z_index = -2
 script = ExtResource("1_skills")
 
-[node name="Visuals" type="Node3D" parent="."]
-script = ExtResource("2_visuals")
+[node name="Visuals" type="Node2D" parent="."]
+script = ExtResource("2_draw")
