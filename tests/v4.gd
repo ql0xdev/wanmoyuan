@@ -384,9 +384,9 @@ func _test_effect(battle: Node, id: String) -> void:
 	wolf._health = 1000
 	match id:
 		"sword":
-			v4.update_blades(0.0, 20, 72.0, 2.4)
-			v4.update_blades(0.5, 20, 72.0, 2.4)
-			_expect(wolf._health == 970 and skills._visuals._blades.size() == 12, "万剑十二把，实际周期伤 30")
+			v4.update_blades(0.0, 30, 2.4)
+			v4.update_blades(0.5, 30, 2.4)
+			_expect(wolf._health == 928 and skills._visuals._blades.size() == 12, "万剑十二把，实际周期伤 72")
 			await _capture("17-效果-万剑归宗")
 		"lightning":
 			v4._cast_thunderfire()

@@ -226,10 +226,10 @@ func _cast_freeze() -> void:
 	_visuals.pulse(origin, radius, Color("#9defff"))
 
 
-func update_blades(delta: float, base_damage: int, radius: float, speed: float) -> void:
+func update_blades(delta: float, base_damage: int, speed: float) -> void:
 	var rule: Dictionary = Catalog.EVOLUTIONS.sword
 	var count := Catalog.cast_count(rule.count, Catalog.RUN_SKILL_CAP)
-	radius *= Catalog.range_factor(Catalog.RUN_SKILL_CAP)
+	var radius: float = rule.radius * Catalog.range_factor(Catalog.RUN_SKILL_CAP)
 	var origin := _player.global_position
 	_blade_angle = fposmod(_blade_angle + speed * delta, TAU)
 	_blade_offsets.resize(count)
@@ -237,7 +237,7 @@ func update_blades(delta: float, base_damage: int, radius: float, speed: float) 
 		_blade_offsets[i] = BattlePlane.direction(_blade_angle + TAU * i / count) * radius
 	_visuals.show_blades(origin, _blade_offsets)
 	var tint := Color("#fff4a3")
-	var damage := Aura.tick_amount(_player.stats.damage(roundi(base_damage * rule.power)))
+	var damage := Aura.tick_amount(_player.stats.damage(roundi(base_damage * rule.aura_power)))
 	_visuals.show_aura("blades", origin, radius, tint, delta)
 	if _blade_aura.step(delta, origin, radius, damage, _enemies, _batch):
 		_visuals.pulse(origin, radius, tint)

@@ -159,7 +159,7 @@ func _ready() -> void:
 	_ground.follow(_camera.focus)
 	_ground.set_abyss_tint(_abyss.color)
 	_effects.configure(_camera)
-	_skills.configure(_player, _living_enemies, _launch_sword, _camera, SaveManager.learned_skills(), SaveManager.passive_levels(), _damage_batch)
+	_skills.configure(_player, _living_enemies, _launch_sword, _camera, SaveManager.learned_skills(), SaveManager.passive_levels(), _damage_batch, _launch_divine_sword)
 	_damage_batch.resolved.connect(_try_hit_stop)
 	_joystick.reserved_buttons.assign([_hud.shop_button, _hud.bag_button, _hud.menu_button, _hud._loot_notice])
 	_joystick.reserved_button_tapped.connect(_on_battle_button_tapped)
@@ -386,6 +386,13 @@ func _outside_screen_position(art_extent := 0.0) -> Vector2:
 func _launch_sword(origin: Vector2, direction: Vector2, damage: int, reach := 1.0) -> void:
 	var sword := _sword_pool.acquire() as FlyingSword
 	sword.launch(origin, direction, damage, reach)
+
+
+func _launch_divine_sword(origin: Vector2, target: Enemy, damage: int, reach: float) -> void:
+	if _phase != Phase.BATTLE:
+		return
+	var sword := _sword_pool.acquire() as FlyingSword
+	sword.launch(origin, origin.direction_to(target.global_position), damage, reach, target)
 
 
 func _launch_orb(origin: Vector2, direction: Vector2, damage: int, boss_flame := false, source: Enemy = null) -> void:

@@ -59,8 +59,10 @@ const SKILL_DATA := {
 		"interval": 20.0, "absorb": [30, 50, 80, 100, 120], "duration": 5.0},
 }
 const EVOLUTIONS := {
-	"sword": {"name": "万剑归宗", "partner": "sword_storm", "card": "12 剑环绕\n持续斩击圈内敌人",
-		"count": 8, "power": 2.5},
+	"sword": {"name": "万剑归宗", "partner": "sword_storm",
+		"card": "大剑阵持续斩击\n每 2.5 秒齐射 12 剑",
+		"count": 8, "radius": 150.0, "aura_power": 4.0, "volley_power": 2.5,
+		"volley_interval": 2.5, "target_range": 1200.0},
 	"lightning": {"name": "雷火天降", "partner": "fire", "card": "范围雷火\n感电＋灼烧",
 		"interval": 3.0, "radius": 175.0, "amp": 0.20, "shock": 2.0, "burn_damage": 10, "burn_seconds": 3},
 	"orbs": {"name": "玄武真罡", "passive": "body", "card": "罡气持续伤害\n减伤 30% · 反弹 50%",

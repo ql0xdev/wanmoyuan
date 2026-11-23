@@ -5,6 +5,7 @@ const WISP_SLOTS := 15
 const PULSE_SLOTS := 12
 const PULSE_TIME := 0.46
 const HEAL_FLASH_TIME := 0.32
+const VOLLEY_FLASH_TIME := 0.36
 
 var _orb_radius := 0.0
 var _ice_radius := 0.0
@@ -24,6 +25,9 @@ var _pulse_index := 0
 var _shield := false
 var _heal_left := 0.0
 var _heal_at := Vector2.ZERO
+var _volley_left := 0.0
+var _volley_at := Vector2.ZERO
+var _volley_radius := 0.0
 
 
 func setup(orb_radius: float, ice_radius: float, lightning_radius: float) -> void:
@@ -59,6 +63,9 @@ func update_ascension(origin: Vector2, delta: float, shield: int) -> void:
 		if pulse_data.left > 0.0:
 			pulse_data.left -= delta
 			queue_redraw()
+	if _volley_left > 0.0:
+		_volley_left = maxf(0.0, _volley_left - delta)
+		queue_redraw()
 	if _shield or previously_shielded:
 		queue_redraw()
 
@@ -93,6 +100,13 @@ func hide_aura(id: String) -> void:
 func show_blades(origin: Vector2, offsets: PackedVector2Array) -> void:
 	_origin = origin
 	_blades = offsets.duplicate()
+	queue_redraw()
+
+
+func flash_sword_volley(origin: Vector2, radius: float) -> void:
+	_volley_at = origin
+	_volley_radius = radius
+	_volley_left = VOLLEY_FLASH_TIME
 	queue_redraw()
 
 
@@ -132,10 +146,14 @@ func _draw() -> void:
 		var radius: float = aura.radius
 		var breathe: float = sin(aura.phase)
 		draw_circle(at, radius, Ink.alpha(tint, 0.054 + 0.012 * breathe), true, -1, true)
-		var opacity: float = 0.33 if id == "blades" else 0.66
+		var opacity: float = 0.56 if id == "blades" else 0.66
 		Ink.ring(self, at, radius, Ink.alpha(tint, opacity + 0.10 * breathe), 2.8)
 		# 焰苗只改变绘制位置，不改变圆环实际判定半径。
-		if id == "wisp":
+		if id == "blades":
+			for i in range(6):
+				var angle: float = i * TAU / 6.0 + aura.phase * 0.12
+				draw_arc(at, radius - 13.0, angle, angle + 0.68, 12, Ink.alpha(tint, 0.52), 2.3, true)
+		elif id == "wisp":
 			for i in range(12):
 				var axis := Vector2.from_angle(i * TAU / 12.0)
 				var tip := at + axis * (radius - 8.0 - 6.0 * sin(aura.phase + i))
@@ -161,7 +179,15 @@ func _draw() -> void:
 		var dir := Vector2(-spot.y, spot.x).normalized()
 		var at := _origin + spot
 		draw_line(at - dir * 17.0, at + dir * 5.0, Color("#ffe8a953"), 5.0, true)
-		Ink.sword(self, at, dir, Color("#ffe9a4"), 0.74)
+		Ink.sword(self, at, dir, Color("#ffe9a4"), 1.06)
+	if _volley_left > 0.0:
+		var progress := 1.0 - _volley_left / VOLLEY_FLASH_TIME
+		var wave := lerpf(_volley_radius * 0.35, _volley_radius * 1.35, progress)
+		var tint := Ink.alpha(Color("#ffdb8c"), (1.0 - progress) * 0.86)
+		Ink.ring(self, _volley_at, wave, tint, 4.5)
+		for i in range(12):
+			var axis := Vector2.from_angle(TAU * i / 12.0)
+			draw_line(_volley_at + axis * wave * 0.62, _volley_at + axis * wave, tint, 2.2, true)
 	if _bolt_alpha > 0.0:
 		for point in _bolts:
 			_draw_thunder(point, _lightning_radius * _bolt_reach, Color("#a7cfff"), _bolt_alpha, 134.0)

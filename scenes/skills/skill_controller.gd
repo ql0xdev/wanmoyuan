@@ -57,7 +57,9 @@ var _player: Player
 var _camera: BattleCamera
 var _enemies: Array[Enemy]
 var _launch_sword: Callable
+var _launch_divine_sword: Callable
 var _sword_left := SWORD_INTERVAL
+var _divine_volley_left := 0.0
 var _lightning_left := LIGHTNING_INTERVAL
 var _heal_left := 0.0
 var _flash_left := 0.0
@@ -71,10 +73,11 @@ var _fire_zones: Array[Dictionary] = []
 
 
 func configure(player: Player, enemies: Array[Enemy], launch_sword: Callable, camera: BattleCamera,
-		learned: Array, passives: Dictionary, batch: DamageBatch) -> void:
+		learned: Array, passives: Dictionary, batch: DamageBatch, launch_divine_sword: Callable) -> void:
 	_player = player
 	_enemies = enemies
 	_launch_sword = launch_sword
+	_launch_divine_sword = launch_divine_sword
 	_camera = camera
 	_learned = learned.duplicate()
 	_passives = passives.duplicate()
@@ -254,7 +257,8 @@ func _physics_process(delta: float) -> void:
 	_ascension.update(delta, cooldown_step, _levels)
 	var sword_level := _levels[Skill.SWORD]
 	if _evolved.has(Skill.SWORD):
-		_ascension.update_blades(delta, SWORD_DAMAGE[CAP - 1], ORBIT_RADIUS, ORBIT_SPEED)
+		_ascension.update_blades(delta, SWORD_DAMAGE[CAP - 1], ORBIT_SPEED)
+		_update_divine_volley(cooldown_step)
 	elif sword_level > 0:
 		_sword_left -= cooldown_step
 		if _sword_left <= 0.0:
@@ -326,6 +330,32 @@ func _cast_swords(level: int) -> void:
 		var lateral := (float(i) - (count - 1) * 0.5) * 18.0
 		var start := origin + Vector2(-direction.y, direction.x) * lateral - direction * (i * 22.0)
 		_launch_sword.call(start, start.direction_to(target), damage, Catalog.range_factor(level))
+	swords_cast.emit()
+
+
+func _update_divine_volley(cooldown_step: float) -> void:
+	_divine_volley_left = maxf(0.0, _divine_volley_left - cooldown_step)
+	if _divine_volley_left > 0.0 or _enemies.is_empty():
+		return
+	var rule: Dictionary = Catalog.EVOLUTIONS.sword
+	var origin := _player.global_position
+	var range_squared: float = rule.target_range * rule.target_range
+	var targets: Array[Enemy] = []
+	for enemy in _enemies:
+		if enemy._health > 0 and origin.distance_squared_to(enemy.global_position) <= range_squared:
+			targets.append(enemy)
+	if targets.is_empty():
+		return
+	targets.sort_custom(func(a: Enemy, b: Enemy) -> bool:
+		return origin.distance_squared_to(a.global_position) < origin.distance_squared_to(b.global_position))
+	var damage := _player.stats.damage(roundi(SWORD_DAMAGE[CAP - 1] * rule.volley_power))
+	var reach := Catalog.range_factor(CAP)
+	var offsets := _ascension._blade_offsets
+	for i in range(offsets.size()):
+		var target := targets[i % targets.size()]
+		_launch_divine_sword.call(origin + offsets[i] * 0.52, target, damage, reach)
+	_divine_volley_left = rule.volley_interval
+	_visuals.flash_sword_volley(origin, rule.radius * reach)
 	swords_cast.emit()
 
 
