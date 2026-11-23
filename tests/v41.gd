@@ -1,5 +1,7 @@
 extends SceneTree
 
+const Fixture = preload("res://tests/realm_fixture.gd")
+
 const Equipment = preload("res://scripts/equipment_catalog.gd")
 const Forge = preload("res://scripts/forge_catalog.gd")
 const Catalog = preload("res://scripts/cultivation_catalog.gd")
@@ -84,7 +86,7 @@ func _test_tables() -> void:
 func _test_loot_and_bag() -> void:
 	_expect(_save.settle_run(9500, false, "outer", [WORN, GREEN, GREEN, WHITE, PURPLE]) == OK
 		and _save.change_equipment(1, true) == OK, "建立可对比的正式存档")
-	_expect(_save.breakthrough() == OK and _save.breakthrough() == OK and _save.realm() == "gold_core", "金丹测试账号")
+	_expect(Fixture.advance(_save) and Fixture.advance(_save) and _save.realm() == "gold_core", "金丹测试账号")
 	var battle := await _battle("outer")
 	var drop := _pickup(battle, GREEN)
 	_expect(not drop.visible and battle._hud._loot_notice.visible and battle._hud.loot_item_id == -1, "拾取事件显示可点通知")
@@ -302,9 +304,10 @@ func _test_legacy() -> void:
 	expected["iron"] = 0
 	expected["forge_count"] = 0
 	expected.equipment_storage[0]["star"] = 0
+	Fixture.migrations(expected)
 	_expect(_save._profile == expected, "存档原字段完全保留")
 	_expect("save_version=4" in FileAccess.get_file_as_string(SAVE) and _save.save_profile() == OK
-		and "save_version=6" in FileAccess.get_file_as_string(SAVE) and _save._load_profile() == OK
+		and "save_version=7" in FileAccess.get_file_as_string(SAVE) and _save._load_profile() == OK
 		and _save._profile == expected, "首次保存原子迁移并重读")
 	var cave := await _scene(CAVE)
 	cave._tabs.current_tab = 2
@@ -318,9 +321,9 @@ func _test_legacy() -> void:
 
 
 func _test_stress() -> void:
-	_expect(_save.settle_run(140500, false, "outer", [WORN]) == OK and _save.change_equipment(1, true) == OK, "压测存档")
+	_expect(_save.settle_run(Fixture.TRIBULATION_BUDGET, false, "outer", [WORN]) == OK and _save.change_equipment(1, true) == OK, "压测存档")
 	for i in range(5):
-		_expect(_save.breakthrough() == OK, "解锁五层")
+		_expect(Fixture.advance(_save), "解锁五层")
 	var battle := await _battle("source")
 	battle._player.accepts_damage = false
 	battle._elapsed = 239.95

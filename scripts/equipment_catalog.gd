@@ -4,13 +4,17 @@ const SLOTS := {
 	"weapon": {"name": "武器", "item": "灵剑", "base": {"damage": 0.22}},
 	"armor": {"name": "护甲", "item": "道袍", "base": {"health": 0.18, "mitigation": 0.04}},
 	"accessory": {"name": "饰品", "item": "灵佩", "base": {"move_speed": 0.05, "cooldown": 0.04, "stone_amount": 0.08}},
+	"hat": {"name": "帽子", "item": "灵冠", "base": {"health": 0.18}},
+	"gloves": {"name": "护手", "item": "护腕", "base": {"damage": 0.22}},
+	"pants": {"name": "裤子", "item": "法裤", "base": {"mitigation": 0.04}},
+	"boots": {"name": "鞋子", "item": "云履", "base": {"move_speed": 0.05}},
 }
 const TIERS := ["炼气", "筑基", "金丹", "元婴", "化神", "渡劫"]
 const QUALITIES := ["法器", "灵器", "宝器", "仙器"]
 const COLORS := [Color("#b0b8c0"), Color("#4caf50"), Color("#42a5f5"), Color("#ab47bc")]
 const SALVAGE := [5, 15, 40, 100]
 const BAG_CAPACITY := 12
-const STORAGE_CAPACITY := 200
+const STORAGE_CAPACITY := 300
 const AFFIXES := {
 	"damage": {"name": "攻击", "min": 0.08, "max": 0.14},
 	"health_flat": {"name": "气血上限", "min": 8.0, "max": 15.0},

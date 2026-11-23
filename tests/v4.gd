@@ -1,6 +1,7 @@
 extends SceneTree
 
 const Catalog = preload("res://scripts/cultivation_catalog.gd")
+const Fixture = preload("res://tests/realm_fixture.gd")
 const Equipment = preload("res://scripts/equipment_catalog.gd")
 const SpawnManager = preload("res://scripts/spawn_manager.gd")
 const DemonLord = preload("res://scenes/enemies/demon_lord.gd")
@@ -46,9 +47,9 @@ func _run() -> void:
 		"legacy": await _test_legacy()
 		"stress": await _test_stress()
 		"loadout":
-			_expect(_save.settle_run(140500, false) == OK, "配装截图测试资金")
+			_expect(_save.settle_run(Fixture.TRIBULATION_BUDGET, false) == OK, "配装截图测试资金")
 			for i in range(5):
-				_expect(_save.breakthrough() == OK, "配装截图解锁")
+				_expect(Fixture.advance(_save), "配装截图解锁")
 			await _test_loadout_hints("选功法-条件已满足", "选功法-还缺搭档")
 		_:
 			_test_spawn_rules()
@@ -141,7 +142,7 @@ func _test_campaign() -> void:
 	_expect(_save.skill_points() == 15 and cave._breakthrough.disabled and "渡劫" in cave._breakthrough.text, "渡劫到顶，五次共 15 点")
 	await _test_layer("source", false, "", "14-五层额外渡劫装")
 	var loaded := ConfigFile.new()
-	_expect(loaded.load(SAVE_PATH) == OK and loaded.get_value("save", "save_version", 0) == 6, "存档 schema 为 6")
+	_expect(loaded.load(SAVE_PATH) == OK and loaded.get_value("save", "save_version", 0) == 7, "存档 schema 为 7")
 	var copy := _save.get_script().new() as Node
 	_expect(copy._load_profile() == OK and copy.realm() == "tribulation" and copy.skill_points() == 15 and copy.storage() == _save.storage(), "V4 高阶掉装和总点数可重新读取")
 	copy.free()
@@ -161,7 +162,12 @@ func _test_campaign() -> void:
 
 func _breakthrough(cave: Node, realm: String, cost: int, power: float, shot := "") -> void:
 	_expect(_save.breakthrough() == ERR_UNAVAILABLE, "未达所需灵石前不得突破")
-	_expect(_save.settle_run(cost - _save.spirit_stones(), false) == OK, "隔离测试补齐正式突破费用")
+	var minor_cost: int = Catalog.layer_cost(_save.realm()) * (Catalog.REALM_LAYER_CAP - _save.realm_layer())
+	_expect(_save.settle_run(cost + minor_cost - _save.spirit_stones(), false) == OK, "隔离测试补齐正式突破费用")
+	while _save.realm_layer() < Catalog.REALM_LAYER_CAP:
+		if _save.advance_realm_layer() != OK:
+			_expect(false, "小突破失败")
+			return
 	cave._refresh()
 	var old_points: int = _save.skill_points()
 	cave._breakthrough.pressed.emit()
@@ -475,13 +481,14 @@ func _test_legacy() -> void:
 	data["iron"] = 0
 	data["forge_count"] = 0
 	data.equipment_storage[0]["star"] = 0
+	Fixture.migrations(data)
 	_expect(_save._profile == data, "仅补默认字段")
 	_expect(not _save.is_unlocked("deep") and not _save.learned_skills().has("wisp") and not _save.has_cleared("source"), "新增内容默认未达成")
 	var before := FileAccess.get_file_as_string(SAVE_PATH)
 	_expect("version=1" in before and "save_version" not in before, "只读不重写旧档")
 	_expect(_save.save_profile() == OK, "正常保存写入新版")
 	var after := FileAccess.get_file_as_string(SAVE_PATH)
-	_expect("save_version=6" in after and _save._load_profile() == OK and _save._profile == data, "新版格式重读不丢数据")
+	_expect("save_version=7" in after and _save._load_profile() == OK and _save._profile == data, "新版格式重读不丢数据")
 	print("LEGACY: 筑基武器 id=41、7819 灵石、金丹、2 功法点、离火印、锻体诀及通关进度均保留。")
 	if not _output.is_empty():
 		await _open_cave()
@@ -489,9 +496,9 @@ func _test_legacy() -> void:
 
 
 func _test_stress() -> void:
-	_expect(_save.settle_run(140500, false) == OK, "测试资金")
+	_expect(_save.settle_run(Fixture.TRIBULATION_BUDGET, false) == OK, "测试资金")
 	for i in range(5):
-		_expect(_save.breakthrough() == OK, "压测解锁")
+		_expect(Fixture.advance(_save), "压测解锁")
 	var battle := await _battle("source", ["sword", "lightning", "orbs", "ice"])
 	battle._skills.set_physics_process(true)
 	battle._skills._levels[Skill.SWORD] = 0

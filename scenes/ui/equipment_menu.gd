@@ -6,7 +6,8 @@ const Tooltip = preload("res://scenes/ui/equipment_tooltip.gd")
 const Look = preload("res://scenes/ui/ui_look.gd")
 const CELL_GAP := 8
 const IDEAL_CELL := 124.0
-const SLOT_INK := {"weapon": Color("#3f787d"), "armor": Color("#8b6944"), "accessory": Color("#654d81")}
+const SLOT_INK := {"weapon": Color("#3f787d"), "armor": Color("#8b6944"), "accessory": Color("#654d81"),
+	"hat": Color("#5e7770"), "gloves": Color("#8e5f5b"), "pants": Color("#677a96"), "boots": Color("#806b86")}
 
 signal wear_requested(id: int, equip: bool)
 signal salvage_requested(id: int)
@@ -145,7 +146,7 @@ func display(mode: Mode, items: Array, worn: Dictionary, storage_count := 0, iro
 					Equipment.COLORS[item.quality].to_html(false), Equipment.TIERS[item.tier], Equipment.QUALITIES[item.quality],
 				]
 			slots.append("%s %s" % [Equipment.SLOTS[slot].name, marker])
-		_summary.text += "\n" + "　".join(slots)
+		_summary.text += "\n" + "　".join(slots.slice(0, 4)) + "\n" + "　".join(slots.slice(4))
 	if mode == Mode.SETTLEMENT:
 		show_status("请分解多出的战利品，关闭后重新结算。")
 	elif mode == Mode.BAG and _bag_size >= Equipment.BAG_CAPACITY:

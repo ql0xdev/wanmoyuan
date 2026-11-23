@@ -7,10 +7,12 @@ const BASE_MOVE_SPEED := 200.0
 const BASE_MAGNET_RADIUS := 80.0
 const COOLDOWN_CAP := 0.40
 const MITIGATION_CAP := 0.8
+const PANEL_LABELS := ["气血上限", "攻击倍率", "移速", "拾取范围", "冷却缩减", "受伤减免", "灵石掉落倍率", "击杀回血"]
 
 var cooldown_multiplier := 1.0
 var magnet_radius := BASE_MAGNET_RADIUS
 var _realm: Dictionary = Catalog.REALMS["qi_refining"]
+var _layer_factor := 1.0
 var _passive := {}
 var _gear := {}
 var _pills := {}
@@ -18,8 +20,9 @@ var _run := {}
 var _run_remaining := {}
 
 
-func configure(realm: String, passives: Dictionary, equipment: Dictionary) -> void:
+func configure(realm: String, passives: Dictionary, equipment: Dictionary, layer := 1) -> void:
 	_realm = Catalog.REALMS[realm]
+	_layer_factor = Catalog.layer_multiplier(layer)
 	_passive.clear()
 	for id: String in passives:
 		var node: Dictionary = Catalog.PASSIVES[id]
@@ -51,11 +54,11 @@ func _refresh_derived() -> void:
 
 func max_health() -> int:
 	return roundi((BASE_HEALTH + _passive.get("health_flat", 0.0) + _gear.get("health_flat", 0.0))
-		* _realm.power * _factor("health")) + int(_run.get("health_flat", 0))
+		* _realm.power * _layer_factor * _factor("health")) + int(_run.get("health_flat", 0))
 
 
 func attack_multiplier() -> float:
-	return _realm.power * _factor("damage") * (1.3 if has_pill("rage") else 1.0)
+	return _realm.power * _layer_factor * _factor("damage") * (1.3 if has_pill("rage") else 1.0)
 
 
 func damage(base: int) -> int:
@@ -85,6 +88,14 @@ func stone_amount(base: int) -> int:
 
 func kill_heal() -> int:
 	return int(_gear.get("kill_heal", 0.0) + _run.get("kill_heal", 0.0))
+
+
+func panel_values() -> PackedStringArray:
+	return PackedStringArray([str(max_health()), "×%.2f" % attack_multiplier(),
+		str(roundi(move_speed())), str(roundi(magnet_radius)),
+		"%d%%" % roundi((1.0 - cooldown_multiplier) * 100.0),
+		"%d%%" % roundi((1.0 - damage_taken_multiplier()) * 100.0),
+		"×%.2f" % stone_multiplier(), str(kill_heal())])
 
 
 func has_pill(id: String) -> bool:

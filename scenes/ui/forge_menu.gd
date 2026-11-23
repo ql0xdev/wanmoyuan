@@ -14,7 +14,7 @@ var _header: Label
 var _tabs: HBoxContainer
 var _page := 0
 var _workshop: VBoxContainer
-var _slot_buttons: HBoxContainer
+var _slot_buttons: GridContainer
 var _tiers: GridContainer
 var _cost: Label
 var _status: Label
@@ -39,7 +39,10 @@ func _ready() -> void:
 	_workshop.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	add_child(_workshop)
 	_label(_workshop, 23, Look.GOLD).text = "选择部位"
-	_slot_buttons = HBoxContainer.new()
+	_slot_buttons = GridContainer.new()
+	_slot_buttons.columns = 4
+	_slot_buttons.add_theme_constant_override("h_separation", 8)
+	_slot_buttons.add_theme_constant_override("v_separation", 8)
 	_workshop.add_child(_slot_buttons)
 	for slot: String in Equipment.SLOTS:
 		_button(_slot_buttons, Equipment.SLOTS[slot].name, _choose_slot.bind(slot)).toggle_mode = true

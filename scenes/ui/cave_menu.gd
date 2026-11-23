@@ -11,7 +11,9 @@ const ForgeFlash = preload("res://scenes/ui/forge_flash.gd")
 const GameMenu = preload("res://scenes/ui/game_menu.gd")
 const Look = preload("res://scenes/ui/ui_look.gd")
 const Backdrop = preload("res://scenes/ui/ui_backdrop.gd")
-const STAT_LABELS := ["气血上限", "攻击倍率", "移速", "拾取范围", "冷却缩减", "受伤减免", "灵石掉落倍率", "击杀回血"]
+const CharacterPage = preload("res://scenes/ui/character_page.gd")
+const CaveShop = preload("res://scenes/ui/cave_shop.gd")
+const EvolutionGuide = preload("res://scenes/ui/evolution_guide.gd")
 
 @onready var _title: Label = $SafeArea/Margin/Content/Header/Title
 @onready var _tabs: TabContainer = $SafeArea/Margin/Content/Tabs
@@ -50,6 +52,14 @@ var _picker: SacrificePicker
 var _forge_flash: ForgeFlash
 var _star_grid: GearMenu
 var _star_id := 0
+var _layer_tiles: Array[PanelContainer] = []
+var _layer_labels: Array[Label] = []
+var _character: CharacterPage
+var _shop: CaveShop
+var _guide: EvolutionGuide
+var _practice: VBoxContainer
+var _practice_tab: Button
+var _guide_tab: Button
 
 
 func _ready() -> void:
@@ -59,6 +69,15 @@ func _ready() -> void:
 	_tabs.add_child(_forge_menu)
 	_connect_gear_grid(_forge_menu.gear)
 	_forge_menu.crafted.connect(_refresh)
+	_character = CharacterPage.new()
+	_character.name = "角色"
+	_tabs.add_child(_character)
+	_character.attach($SafeArea)
+	_shop = CaveShop.new()
+	_shop.name = "商店"
+	_tabs.add_child(_shop)
+	_shop.attach($SafeArea)
+	_shop.purchased.connect(_refresh)
 	_picker = SacrificePicker.new()
 	$SafeArea.add_child(_picker)
 	_picker.confirmed.connect(_confirm_star)
@@ -67,6 +86,8 @@ func _ready() -> void:
 	_forge_menu.masterwork.connect(_forge_flash.flash.bind("神匠一击"))
 	_game_menu.closed.connect(_resume_cave)
 	_build_stat_tiles()
+	_build_realm_layers()
+	_build_skill_tabs()
 	_build_skill_tree()
 	_build_preparation()
 	Look.skin_buttons(self)
@@ -98,15 +119,9 @@ func _resume_cave() -> void:
 func _refresh() -> void:
 	var stats := StatsManager.new()
 	var worn := SaveManager.equipped_items()
-	stats.configure(SaveManager.realm(), SaveManager.passive_levels(), worn)
+	stats.configure(SaveManager.realm(), SaveManager.passive_levels(), worn, SaveManager.realm_layer())
 	_realm.text = SaveManager.realm_name()
-	var values := [
-		str(stats.max_health()), "×%.2f" % stats.attack_multiplier(),
-		str(roundi(stats.move_speed())), str(roundi(stats.magnet_radius)),
-		"%d%%" % roundi((1.0 - stats.cooldown_multiplier) * 100.0),
-		"%d%%" % roundi((1.0 - stats.damage_taken_multiplier()) * 100.0),
-		"×%.2f" % stats.stone_multiplier(), str(stats.kill_heal()),
-	]
+	var values := stats.panel_values()
 	for i in range(values.size()):
 		_stat_values[i].text = values[i]
 	var progress := PackedStringArray()
@@ -120,24 +135,35 @@ func _refresh() -> void:
 	_progress.text = "　".join(progress)
 	_stones.text = "洞府灵石 %d　·　玄铁 %d" % [SaveManager.spirit_stones(), SaveManager.iron()]
 
-	var target: String = Catalog.REALMS[SaveManager.realm()].next
-	_breakthrough.disabled = target.is_empty() or SaveManager.spirit_stones() < Catalog.REALMS[target].cost
-	_breakthrough.text = "已达%s" % SaveManager.realm_name() if target.is_empty() else "突破·%s（%d 灵石）" % [Catalog.REALMS[target].name, Catalog.REALMS[target].cost]
-	_breakthrough_bar.visible = not target.is_empty()
-	_breakthrough_progress.visible = not target.is_empty()
-	if not target.is_empty():
-		var cost: int = Catalog.REALMS[target].cost
+	var id := SaveManager.realm()
+	var layer := SaveManager.realm_layer()
+	var target: String = Catalog.REALMS[id].next
+	var minor := layer < Catalog.REALM_LAYER_CAP
+	var cost := Catalog.layer_cost(id) if minor else Catalog.major_cost(id)
+	_breakthrough.disabled = cost == 0 or SaveManager.spirit_stones() < cost
+	_breakthrough.text = "小突破·%s层（%d 灵石）" % [Catalog.LAYER_NAMES[layer], cost] if minor \
+		else ("突破·%s（%d 灵石）" % [Catalog.REALMS[target].name, cost] if cost > 0 else "已达%s" % SaveManager.realm_name())
+	_breakthrough_bar.visible = cost > 0
+	_breakthrough_progress.visible = cost > 0
+	if cost > 0:
 		_breakthrough_bar.max_value = float(cost)
 		_breakthrough_bar.value = float(SaveManager.spirit_stones())
 		_breakthrough_progress.text = "%d / %d 灵石" % [SaveManager.spirit_stones(), cost]
+	for i in range(_layer_tiles.size()):
+		var color := Look.GOLD if i + 1 == layer else (Look.CYAN if i + 1 < layer else Look.BORDER)
+		_layer_tiles[i].add_theme_stylebox_override("panel", Look.box(Look.PANEL, color, 2, 6, 3))
+		_layer_labels[i].modulate = color if i < layer else Look.MUTED
 	_refresh_skill_tree()
+	_guide.refresh()
 	_storage.display(GearMenu.Mode.STORAGE, SaveManager.storage(), worn, 0, SaveManager.iron())
 	_forge_menu.refresh()
+	_character.refresh(stats, worn)
+	_shop.refresh()
 
 
 func _build_stat_tiles() -> void:
 	_style_progress(_breakthrough_bar, Look.GOLD)
-	for title: String in STAT_LABELS:
+	for title: String in StatsManager.PANEL_LABELS:
 		var panel := PanelContainer.new()
 		panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		panel.add_theme_stylebox_override("panel", _locked_card)
@@ -157,17 +183,68 @@ func _build_stat_tiles() -> void:
 		_stat_values.append(value)
 
 
+func _build_realm_layers() -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 7)
+	var parent := _realm.get_parent()
+	parent.add_child(row)
+	parent.move_child(row, _realm.get_index() + 1)
+	for i in range(Catalog.REALM_LAYER_CAP):
+		var panel := PanelContainer.new()
+		panel.custom_minimum_size.y = 38
+		panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(panel)
+		var label := _add_label(panel, Catalog.LAYER_NAMES[i], 22)
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_layer_tiles.append(panel)
+		_layer_labels.append(label)
+
+
+func _build_skill_tabs() -> void:
+	var nav := HBoxContainer.new()
+	_skill_tree.add_child(nav)
+	_practice = VBoxContainer.new()
+	_practice.add_theme_constant_override("separation", 10)
+	_skill_tree.add_child(_practice)
+	_guide = EvolutionGuide.new()
+	_guide.add_theme_constant_override("separation", 8)
+	_skill_tree.add_child(_guide)
+	_practice_tab = _add_button(nav, 52)
+	_guide_tab = _add_button(nav, 52)
+	for button: Button in [_practice_tab, _guide_tab]:
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.toggle_mode = true
+	_practice_tab.text = "修习"
+	_guide_tab.text = "组合图鉴"
+	_practice_tab.pressed.connect(_switch_skill_tab.bind(false))
+	_guide_tab.pressed.connect(_switch_skill_tab.bind(true))
+	_switch_skill_tab(false)
+
+
+func _switch_skill_tab(guide: bool) -> void:
+	_practice.visible = not guide
+	_guide.visible = guide
+	_practice_tab.set_pressed_no_signal(not guide)
+	_guide_tab.set_pressed_no_signal(guide)
+	_skill_tree.get_parent().scroll_vertical = 0
+
+
 func _break_through() -> void:
-	if SaveManager.breakthrough() != OK:
+	var minor := SaveManager.realm_layer() < Catalog.REALM_LAYER_CAP
+	var result := SaveManager.advance_realm_layer() if minor else SaveManager.breakthrough()
+	if result != OK:
 		_show_status("无法完成突破，请检查灵石或存档。")
 		return
 	_refresh()
+	if minor:
+		_show_status("小突破成功 · " + SaveManager.realm_name())
+		return
 	_show_status("")
 	if _flash_tween != null:
 		_flash_tween.kill()
 	_flash.modulate.a = 0.88
 	_notice.modulate.a = 1.0
-	_notice.text = "突破·%s" % SaveManager.realm_name()
+	_notice.text = "突破·%s" % Catalog.REALMS[SaveManager.realm()].name
 	_flash.show()
 	_notice.show()
 	_notice.pivot_offset = _notice.size * 0.5
@@ -192,16 +269,16 @@ func _hide_flash() -> void:
 
 
 func _build_skill_tree() -> void:
-	_points = _add_label(_skill_tree, "", 24)
+	_points = _add_label(_practice, "", 24)
 	_points.modulate = Look.CYAN
-	_add_label(_skill_tree, "主动功法", 32).modulate = Look.GOLD
+	_add_label(_practice, "主动功法", 32).modulate = Look.GOLD
 	var icon_active := Look.swatch(Color("#356a65"), Vector2i(32, 32))
 	var icon_passive := Look.swatch(Color("#625079"), Vector2i(32, 32))
 	var starters := GridContainer.new()
 	starters.columns = 2
 	starters.add_theme_constant_override("h_separation", 8)
 	starters.add_theme_constant_override("v_separation", 8)
-	_skill_tree.add_child(starters)
+	_practice.add_child(starters)
 	for skill: String in Catalog.SKILLS:
 		var node: Dictionary = Catalog.SKILL_DATA[skill]
 		if node.cost == 0:
@@ -210,13 +287,13 @@ func _build_skill_tree() -> void:
 	for skill: String in Catalog.SKILLS:
 		var node: Dictionary = Catalog.SKILL_DATA[skill]
 		if node.cost > 0:
-			var card := _add_tree_card(_skill_tree, node.name, "%s · %d 点" % [node.detail, node.cost], icon_active, _locked_card)
+			var card := _add_tree_card(_practice, node.name, "%s · %d 点" % [node.detail, node.cost], icon_active, _locked_card)
 			_add_tree_action(card, _learn.bind(skill))
 			_skill_nodes[skill] = card
-	_add_label(_skill_tree, "心法 · 永久生效", 32).modulate = Look.GOLD
+	_add_label(_practice, "心法 · 永久生效", 32).modulate = Look.GOLD
 	for id: String in Catalog.PASSIVES:
 		var node: Dictionary = Catalog.PASSIVES[id]
-		var card := _add_tree_card(_skill_tree, node.name, node.detail, icon_passive, _locked_card)
+		var card := _add_tree_card(_practice, node.name, node.detail, icon_passive, _locked_card)
 		var meter := ProgressBar.new()
 		meter.max_value = node.max
 		meter.show_percentage = false

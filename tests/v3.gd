@@ -4,6 +4,7 @@ const DemonLord = preload("res://scenes/enemies/demon_lord.gd")
 ## 用隔离的用户数据目录依次运行：play、exit、reload、invalid。
 
 const Cultivation = preload("res://scripts/cultivation_catalog.gd")
+const Fixture = preload("res://tests/realm_fixture.gd")
 const Equipment = preload("res://scripts/equipment_catalog.gd")
 const Inventory = preload("res://scripts/run_inventory.gd")
 const Stats = preload("res://scripts/stats_manager.gd")
@@ -103,7 +104,7 @@ func _test_play(save: Node) -> void:
 	await scene_changed
 	var cave := current_scene
 	_expect(save.has_profile() and FileAccess.file_exists(SAVE_PATH), "首次进入洞府立即存档")
-	_expect(cave._tabs.get_tab_count() == 4 and cave._tabs.get_tab_title(1) == "功法" and cave._tabs.get_tab_title(3) == "熔炉", "洞府四页签")
+	_expect(cave._tabs.get_tab_count() == 6 and cave._tabs.get_tab_title(1) == "功法" and cave._tabs.get_tab_title(3) == "熔炉", "洞府六页签")
 	_expect(cave._breakthrough.disabled and save.breakthrough() != OK, "灵石不足不能突破")
 	_button(CAVE_CONTENT + "Enter").pressed.emit()
 	_expect(cave._abyss_buttons.middle.disabled and cave._abyss_buttons.inner.disabled, "高层秘境初始锁定")
@@ -162,6 +163,7 @@ func _test_play(save: Node) -> void:
 	await scene_changed
 	cave = current_scene
 	_expect(not paused and "灵石 520" in cave._stones.text, "回洞府显示新余额")
+	_fund_minor_layers(save, cave)
 	cave._breakthrough.pressed.emit()
 	_expect(save.realm() == "foundation" and save.spirit_stones() == 20 and save.skill_points() == 3
 		and cave._flash.visible and cave._notice.text == "突破·筑基", "突破、扣费、送点、金光")
@@ -204,9 +206,10 @@ func _test_play(save: Node) -> void:
 	_button(RESULT_CONTENT + "Cave").pressed.emit()
 	await scene_changed
 	cave = current_scene
+	_fund_minor_layers(save, cave)
 	cave._breakthrough.pressed.emit()
 	_expect(save.realm() == "gold_core" and save.spirit_stones() == 20 and save.skill_points() == 3
-		and cave._breakthrough.disabled and "元婴" in cave._breakthrough.text, "金丹突破后显示尚无足够灵石突破元婴")
+		and cave._breakthrough.disabled and "640 灵石" in cave._breakthrough.text, "金丹突破后灵石不足小突破")
 	cave._skill_nodes.fire.button.pressed.emit()
 	cave._skill_nodes.blink.button.pressed.emit()
 	_expect(save.skill_points() == 0 and save.learned_skills().has("fire") and save.learned_skills().has("blink"), "领悟离火印和缩地成寸")
@@ -227,7 +230,15 @@ func _test_play(save: Node) -> void:
 	cave = current_scene
 	cave._storage._select(1)
 	cave._storage._salvage.pressed.emit()
-	_expect(save.equipment_count() == 199 and save.spirit_stones() == 830 and save.equipped_items().is_empty(), "洞府分解已穿戴装备，腾出库位")
+	_expect(save.equipment_count() == Equipment.STORAGE_CAPACITY - 1 and save.spirit_stones() == 830 and save.equipped_items().is_empty(), "洞府分解已穿戴装备，腾出库位")
+
+
+func _fund_minor_layers(save: Node, cave: Node) -> void:
+	var cost := Cultivation.layer_cost(save.realm())
+	_expect(save.settle_run(cost * (Cultivation.REALM_LAYER_CAP - 1), false) == OK, "夹具补充小突破资金")
+	for i in range(Cultivation.REALM_LAYER_CAP - 1):
+		_expect(save.advance_realm_layer() == OK, "小突破")
+	cave._refresh()
 
 
 func _test_battle_menu(battle: Node, save: Node) -> void:
@@ -429,18 +440,18 @@ func _test_storage_overflow(battle: Node, save: Node) -> void:
 	battle._inventory.collect(WHITE_WEAPON.duplicate())
 	battle._player.take_damage(2000)
 	_expect(_button(RESULT_CONTENT + "Organize").visible and _button(RESULT_CONTENT + "Cave").disabled
-		and save.equipment_count() == 199, "库满不静默丢装备、也不重复结算")
+		and save.equipment_count() == Equipment.STORAGE_CAPACITY - 1, "库满不静默丢装备、也不重复结算")
 	_button(RESULT_CONTENT + "Organize").pressed.emit()
 	battle._gear_menu._select(battle._inventory.bag[0].id)
 	battle._gear_menu._salvage.pressed.emit()
 	battle._gear_overlay.get_node("Content/Close").pressed.emit()
-	_expect(save.equipment_count() == 200 and save.spirit_stones() == 825, "整理战利品后再结算")
+	_expect(save.equipment_count() == Equipment.STORAGE_CAPACITY and save.spirit_stones() == 825, "整理战利品后再结算")
 
 
 func _test_reload(save: Node) -> void:
 	await _open_start_menu()
 	_expect(save.has_profile() and save.spirit_stones() == 830 and save.realm() == "gold_core", "重启自动读档")
-	_expect(save.equipment_count() == 199 and save.equipped_items().is_empty()
+	_expect(save.equipment_count() == Equipment.STORAGE_CAPACITY - 1 and save.equipped_items().is_empty()
 		and save.has_cleared("outer") and save.has_cleared("middle") and save.has_cleared("inner"), "恢复装备库和三层通关")
 	_expect(save.learned_skills().size() == 8 and save.passive_levels().body == 1 and save.skill_points() == 0, "恢复功法和心法")
 	_expect(_button(START_BUTTON).text == "继续修行", "继续修行入口")
@@ -492,7 +503,7 @@ func _test_stress(save: Node) -> void:
 	if save.has_profile() or save.load_error() != OK:
 		_expect(false, "stress 需要空测试目录")
 		return
-	_expect(save.settle_run(2500, false) == OK and save.breakthrough() == OK and save.breakthrough() == OK,
+	_expect(save.settle_run(4100, false) == OK and Fixture.advance(save) and Fixture.advance(save),
 		"准备内渊压测存档")
 	var scene := load("res://scenes/main.tscn") as PackedScene
 	var battle := scene.instantiate()

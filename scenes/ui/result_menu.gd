@@ -44,6 +44,10 @@ func _on_restart_pressed() -> void:
 	restart_requested.emit()
 
 
+func show_cave_error() -> void:
+	_settlement.text = "战利品已保存。洞府商品刷新失败，请重试返回洞府。"
+
+
 func _on_cave_pressed() -> void:
 	cave_requested.emit()
 

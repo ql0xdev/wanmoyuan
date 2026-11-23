@@ -120,6 +120,8 @@ var _choices: Array[Dictionary] = []
 var _run_won := false
 var _settlement_saved := false
 var _settlement_error: Error = OK
+var _pending_evolutions := PackedStringArray()
+var _cave_stock_ready := false
 var _abyss_id := Cultivation.DEFAULT_ABYSS
 var _abyss: Dictionary
 var _enemy_shapes := {}
@@ -140,7 +142,7 @@ func _ready() -> void:
 	_abyss = Cultivation.ABYSSES[_abyss_id]
 	_spawns = SpawnManager.new(_abyss)
 	_inventory.setup(SaveManager.equipped_items())
-	_player.stats.configure(SaveManager.realm(), SaveManager.passive_levels(), _inventory.worn)
+	_player.stats.configure(SaveManager.realm(), SaveManager.passive_levels(), _inventory.worn, SaveManager.realm_layer())
 	_player.refresh_equipment(true)
 	_loot_rng.randomize()
 	_consumable_rng.randomize()
@@ -783,7 +785,12 @@ func _show_level_up() -> void:
 func _on_upgrade_chosen(index: int) -> void:
 	if _phase != Phase.BATTLE or not _upgrade_menu.visible or index < 0 or index >= _choices.size():
 		return
-	_skills.apply_card(_choices[index])
+	var choice := _choices[index]
+	_skills.apply_card(choice)
+	if choice.type == "evolution" and _skills._evolved.has(choice.id):
+		var id: String = Cultivation.SKILLS[choice.id]
+		if SaveManager.record_evolution(id) != OK and not _pending_evolutions.has(id):
+			_pending_evolutions.append(id)
 	_level += 1
 	_xp -= _xp_required
 	_xp_required = cultivation_required(_level)
@@ -897,7 +904,7 @@ func _save_run_result() -> void:
 	if _phase != Phase.RESULT or _settlement_saved:
 		return
 	var loot := _inventory.new_loot()
-	_settlement_error = SaveManager.settle_run(_spirit_stones, _run_won, _abyss_id, loot, _iron)
+	_settlement_error = SaveManager.settle_run(_spirit_stones, _run_won, _abyss_id, loot, _iron, _pending_evolutions)
 	_settlement_saved = _settlement_error == OK
 	_result_menu.show_settlement(_settlement_error, _spirit_stones, SaveManager.spirit_stones(), loot.size(), _iron)
 
@@ -917,6 +924,11 @@ func _restart_battle() -> void:
 func _return_to_cave() -> void:
 	if _phase != Phase.RESULT or not _settlement_saved:
 		return
+	if not _cave_stock_ready:
+		if SaveManager.refresh_cave_shop() != OK:
+			_result_menu.show_cave_error()
+			return
+		_cave_stock_ready = true
 	var tree := get_tree()
 	if tree.change_scene_to_file(CAVE_SCENE) == OK:
 		tree.paused = false

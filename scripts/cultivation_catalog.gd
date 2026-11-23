@@ -9,6 +9,9 @@ const REALMS := {
 	"tribulation": {"name": "渡劫", "rank": 5, "next": "", "cost": 100000, "power": 4.0, "speed": 1.1},
 }
 const BREAKTHROUGH_POINTS := 3
+const REALM_LAYER_CAP := 9
+const LAYER_PERCENT := 8
+const LAYER_NAMES := ["一", "二", "三", "四", "五", "六", "七", "八", "九"]
 const RUN_SECONDS := 300
 const BOSS_AT := 240
 const ABYSSES := {
@@ -97,8 +100,8 @@ static func cast_count(base: int, level: int) -> int:
 	return ceili(base * 1.5) if level >= RUN_SKILL_CAP else base
 
 
-static func evolution_recipe(id: String) -> String:
-	var rule: Dictionary = EVOLUTIONS[id]
+static func evolution_recipe(id: String, table := EVOLUTIONS) -> String:
+	var rule: Dictionary = table[id]
 	var partner: String
 	if rule.has("partner"):
 		partner = SKILL_DATA[rule.partner].name
@@ -111,6 +114,25 @@ static func evolution_recipe(id: String) -> String:
 
 static func realm_at_least(current: String, required: String) -> bool:
 	return REALMS[current].rank >= REALMS[required].rank
+
+
+static func realm_caption(id: String, layer: int) -> String:
+	return "%s·%s层" % [REALMS[id].name, LAYER_NAMES[layer - 1]]
+
+
+static func major_cost(id: String) -> int:
+	var next_id: String = REALMS[id].next
+	return 0 if next_id.is_empty() else REALMS[next_id].cost
+
+
+static func layer_cost(id: String) -> int:
+	var cost := major_cost(id)
+	# 渡劫没有下一境，用进入渡劫的大突破费作为九层修炼基准。
+	return floori(float(cost if cost > 0 else REALMS[id].cost) * LAYER_PERCENT / 100.0)
+
+
+static func layer_multiplier(layer: int) -> float:
+	return 1.0 + float(LAYER_PERCENT * (layer - 1)) / 100.0
 
 
 static func evolution_matches(id: String, loadout: Array, passives: Dictionary) -> bool:

@@ -1,35 +1,42 @@
 extends Node
 
 const SAVE_PATH := "user://save.cfg"
-const SAVE_VERSION := 6
+const SAVE_VERSION := 7
+const V5_SAVE_VERSION := 6
 const V41_SAVE_VERSION := 5
 const V4_SAVE_VERSION := 4
 const LEGACY_VERSION := 1
 const Catalog = preload("res://scripts/cultivation_catalog.gd")
 const Equipment = preload("res://scripts/equipment_catalog.gd")
 const Forge = preload("res://scripts/forge_catalog.gd")
+const Shop = preload("res://scripts/cave_shop_catalog.gd")
 const MAX_BALANCE := 9223372036854775807
 const DEFAULT_PROFILE := {
 	"spirit_stones": 0,
 	"iron": 0,
 	"forge_count": 0,
 	"realm": "qi_refining",
+	"realm_layer": 1,
 	"skill_points": 0,
 	"learned_skills": Catalog.STARTER_SKILLS,
 	"passive_levels": {},
 	"equipment_storage": [],
 	"equipped": {},
 	"secret_realm_progress": {},
+	"cave_shop": [],
+	"evolutions": {},
 }
 
 var _profile := DEFAULT_PROFILE.duplicate(true)
 var _has_profile := false
 var _load_error: Error = OK
 var _forge_rng := RandomNumberGenerator.new()
+var _shop_rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
 	_forge_rng.randomize()
+	_shop_rng.randomize()
 	_load_error = _load_profile()
 	if _load_error != OK:
 		push_warning("无法读取修行存档 %s：%s" % [SAVE_PATH, error_string(_load_error)])
@@ -56,11 +63,15 @@ func forge_count() -> int:
 
 
 func realm_name() -> String:
-	return Catalog.REALMS[realm()].name
+	return Catalog.realm_caption(realm(), realm_layer())
 
 
 func realm() -> String:
 	return _profile["realm"]
+
+
+func realm_layer() -> int:
+	return _profile.realm_layer
 
 
 func skill_points() -> int:
@@ -109,7 +120,8 @@ func save_profile() -> Error:
 	return _commit_profile(_profile)
 
 
-func settle_run(stones: int, cleared: bool, abyss := Catalog.DEFAULT_ABYSS, loot: Array = [], gained_iron := 0) -> Error:
+func settle_run(stones: int, cleared: bool, abyss := Catalog.DEFAULT_ABYSS, loot: Array = [], gained_iron := 0,
+		pending_evolutions := PackedStringArray()) -> Error:
 	if stones < 0 or stones > MAX_BALANCE - spirit_stones() or gained_iron < 0 \
 			or gained_iron > MAX_BALANCE - iron() or not is_unlocked(abyss):
 		return ERR_INVALID_PARAMETER
@@ -120,6 +132,9 @@ func settle_run(stones: int, cleared: bool, abyss := Catalog.DEFAULT_ABYSS, loot
 	next_profile["iron"] = iron() + gained_iron
 	if cleared:
 		next_profile["secret_realm_progress"][abyss] = true
+	for id in pending_evolutions:
+		if Catalog.EVOLUTIONS.has(id):
+			next_profile.evolutions[id] = true
 	var used_ids := {}
 	for item: Dictionary in next_profile["equipment_storage"]:
 		used_ids[item.id] = true
@@ -139,7 +154,7 @@ func settle_run(stones: int, cleared: bool, abyss := Catalog.DEFAULT_ABYSS, loot
 
 func breakthrough() -> Error:
 	var target: String = Catalog.REALMS[realm()].next
-	if target.is_empty():
+	if target.is_empty() or realm_layer() != Catalog.REALM_LAYER_CAP:
 		return ERR_UNAVAILABLE
 	var cost: int = Catalog.REALMS[target].cost
 	if spirit_stones() < cost:
@@ -147,7 +162,62 @@ func breakthrough() -> Error:
 	var next_profile := _profile.duplicate(true)
 	next_profile["spirit_stones"] -= cost
 	next_profile["realm"] = target
+	next_profile.realm_layer = 1
 	next_profile["skill_points"] += Catalog.BREAKTHROUGH_POINTS
+	return _commit_profile(next_profile)
+
+
+func advance_realm_layer() -> Error:
+	var cost := Catalog.layer_cost(realm())
+	if realm_layer() >= Catalog.REALM_LAYER_CAP or spirit_stones() < cost:
+		return ERR_UNAVAILABLE
+	var next_profile := _profile.duplicate(true)
+	next_profile.spirit_stones -= cost
+	next_profile.realm_layer += 1
+	return _commit_profile(next_profile)
+
+
+func shop_items() -> Array:
+	return _profile.cave_shop.duplicate(true)
+
+
+func refresh_cave_shop() -> Error:
+	var next_profile := _profile.duplicate(true)
+	next_profile.cave_shop = Shop.roll_stock(Catalog.REALMS[realm()].rank, _shop_rng)
+	return _commit_profile(next_profile)
+
+
+func buy_shop_item(id: int) -> Error:
+	if id < 1 or id > _profile.cave_shop.size():
+		return ERR_INVALID_PARAMETER
+	var offer: Dictionary = _profile.cave_shop[id - 1]
+	if offer.sold or spirit_stones() < offer.price:
+		return ERR_UNAVAILABLE
+	if equipment_count() >= Equipment.STORAGE_CAPACITY:
+		return ERR_OUT_OF_MEMORY
+	var next_profile := _profile.duplicate(true)
+	var stored: Dictionary = offer.item.duplicate(true)
+	var next_id := 1
+	while _equipment_index(next_id) >= 0:
+		next_id += 1
+	stored.id = next_id
+	next_profile.equipment_storage.append(stored)
+	next_profile.cave_shop[id - 1].sold = true
+	next_profile.spirit_stones -= offer.price
+	return _commit_profile(next_profile)
+
+
+func has_evolved(id: String) -> bool:
+	return _profile.evolutions.get(id, false)
+
+
+func record_evolution(id: String) -> Error:
+	if not Catalog.EVOLUTIONS.has(id):
+		return ERR_INVALID_PARAMETER
+	if has_evolved(id):
+		return OK
+	var next_profile := _profile.duplicate(true)
+	next_profile.evolutions[id] = true
 	return _commit_profile(next_profile)
 
 
@@ -276,13 +346,17 @@ func _load_profile() -> Error:
 		return error
 	var legacy := not config.has_section_key("save", "save_version")
 	var version: Variant = config.get_value("save", "version" if legacy else "save_version", 0)
-	if not version is int or (version != LEGACY_VERSION if legacy else version not in [V4_SAVE_VERSION, V41_SAVE_VERSION, SAVE_VERSION]):
+	if not version is int or (version != LEGACY_VERSION if legacy else version not in [V4_SAVE_VERSION, V41_SAVE_VERSION, V5_SAVE_VERSION, SAVE_VERSION]):
 		return ERR_INVALID_DATA
 
 	var loaded := {}
 	for key: String in DEFAULT_PROFILE:
 		# 只读白名单字段，旧版携带配置即使存在也不进入新版档案。
-		var value: Variant = config.get_value("profile", key, 0 if version < V41_SAVE_VERSION and key in ["iron", "forge_count"] else null)
+		var value: Variant
+		if version < SAVE_VERSION and key in ["realm_layer", "cave_shop", "evolutions"]:
+			value = DEFAULT_PROFILE.duplicate(true)[key]
+		else:
+			value = config.get_value("profile", key, 0 if version < V41_SAVE_VERSION and key in ["iron", "forge_count"] else null)
 		if typeof(value) != typeof(DEFAULT_PROFILE[key]):
 			return ERR_INVALID_DATA
 		loaded[key] = value
@@ -299,7 +373,7 @@ func _load_profile() -> Error:
 
 func _valid_profile(profile: Dictionary) -> bool:
 	if not Catalog.REALMS.has(profile.realm) or profile.spirit_stones < 0 or profile.skill_points < 0 \
-			or profile.iron < 0 or profile.forge_count < 0:
+			or profile.iron < 0 or profile.forge_count < 0 or profile.realm_layer < 1 or profile.realm_layer > Catalog.REALM_LAYER_CAP:
 		return false
 	if profile.skill_points > (Catalog.REALMS.size() - 1) * Catalog.BREAKTHROUGH_POINTS:
 		return false
@@ -318,6 +392,11 @@ func _valid_profile(profile: Dictionary) -> bool:
 	for abyss: Variant in profile.secret_realm_progress:
 		if not Catalog.ABYSSES.has(abyss) or not profile.secret_realm_progress[abyss] is bool:
 			return false
+	for id: Variant in profile.evolutions:
+		if not id is String or not profile.evolutions[id] is bool:
+			return false
+	if not _valid_shop(profile.cave_shop, Catalog.REALMS[profile.realm].rank):
+		return false
 	if profile.equipment_storage.size() > Equipment.STORAGE_CAPACITY:
 		return false
 	var slots_by_id := {}
@@ -327,6 +406,23 @@ func _valid_profile(profile: Dictionary) -> bool:
 		slots_by_id[item.id] = item.slot
 	for slot: Variant in profile.equipped:
 		if not Equipment.SLOTS.has(slot) or slots_by_id.get(profile.equipped[slot]) != slot:
+			return false
+	return true
+
+
+func _valid_shop(stock: Array, unlocked_rank: int) -> bool:
+	if stock.is_empty():
+		return true
+	if stock.size() != Shop.ITEM_COUNT:
+		return false
+	for i in range(stock.size()):
+		var offer: Variant = stock[i]
+		if not offer is Dictionary or not offer.get("id") is int or offer.id != i + 1 \
+				or not offer.get("sold") is bool or not offer.get("price") is int:
+			return false
+		var item: Variant = offer.get("item")
+		if not Equipment.is_valid(item) or item.get("star", -1) != 0 or item.has("id") \
+				or item.tier > unlocked_rank or offer.price != Shop.price(item.tier, item.quality):
 			return false
 	return true
 

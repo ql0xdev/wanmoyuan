@@ -1,5 +1,7 @@
 extends SceneTree
 
+const Fixture = preload("res://tests/realm_fixture.gd")
+
 const Catalog = preload("res://scripts/cultivation_catalog.gd")
 const Spawns = preload("res://scripts/spawn_manager.gd")
 const DemonLord = preload("res://scenes/enemies/demon_lord.gd")
@@ -86,7 +88,7 @@ func _check_tables() -> void:
 
 
 func _opening_and_cards() -> void:
-	_expect(_save.settle_run(2500, false) == OK and _save.breakthrough() == OK and _save.breakthrough() == OK, "准备洞府")
+	_expect(_save.settle_run(4100, false) == OK and Fixture.advance(_save) and Fixture.advance(_save), "准备洞府")
 	for id: String in ["sword_storm", "fire", "blink", "dash"]:
 		_expect(_save.learn_skill(id) == OK, "洞府实际领悟 " + id)
 	var cave := await _scene(CAVE)
@@ -543,10 +545,11 @@ func _legacy(path: String) -> void:
 	for key: String in config.get_section_keys("profile"):
 		if key != "loadout":
 			expected[key] = config.get_value("profile", key)
+	Fixture.migrations(expected)
 	_expect(config.save(SAVE) == OK and _save._load_profile() == OK and _save._profile == expected, "所有有效字段完整加载")
 	_expect("save_version=5" in FileAccess.get_file_as_string(SAVE) and _save.save_profile() == OK
-		and "save_version=6" in FileAccess.get_file_as_string(SAVE) and _save._load_profile() == OK
-		and _save._profile == expected and "loadout=" not in FileAccess.get_file_as_string(SAVE), "首次正常写档到 V6，弃用配置")
+		and "save_version=7" in FileAccess.get_file_as_string(SAVE) and _save._load_profile() == OK
+		and _save._profile == expected and "loadout=" not in FileAccess.get_file_as_string(SAVE), "首次正常写档到 V7，弃用配置")
 	var cave := await _scene(CAVE)
 	await _capture("验收12a-旧档境界灵石及玄铁")
 	cave._tabs.current_tab = 2
@@ -561,9 +564,9 @@ func _legacy(path: String) -> void:
 
 
 func _stress() -> void:
-	_expect(_save.settle_run(140500, false) == OK, "压测资金")
+	_expect(_save.settle_run(Fixture.TRIBULATION_BUDGET, false) == OK, "压测资金")
 	for j in range(5):
-		_expect(_save.breakthrough() == OK, "压测解锁")
+		_expect(Fixture.advance(_save), "压测解锁")
 	var battle := await _battle("source")
 	var player: Node2D = battle._player
 	player.accepts_damage = false

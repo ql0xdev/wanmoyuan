@@ -15,10 +15,16 @@ func _run() -> void:
 	if not data.contains("/wanmoyuan-v41-test-") or save.has_profile() or save.load_error() != OK:
 		quit(1)
 		return
-	if save.settle_run(140500, false) != OK:
+	var layered := save.has_method("advance_realm_layer")
+	if save.settle_run(230420 if layered else 140500, false) != OK:
 		quit(1)
 		return
 	for i in range(5):
+		if layered:
+			for level in range(8):
+				if save.advance_realm_layer() != OK:
+					quit(1)
+					return
 		if save.breakthrough() != OK:
 			quit(1)
 			return
