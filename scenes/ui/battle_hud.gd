@@ -14,12 +14,18 @@ extends Control
 @onready var _boss_label: Label = $BossHealth/Caption/Value
 @onready var _boss_title: Label = $BossHealth/Caption/BossName
 @onready var _boss_notice: PanelContainer = $BossNotice
+@onready var _wave_notice: Label = $WaveNotice
+@onready var _boss_action: Label = $BossAction
 @onready var _victory_loot_panel: PanelContainer = $VictoryLoot
 @onready var _victory_loot_label: Label = $VictoryLoot/Margin/Content/Heading/Seconds
 @onready var _loot_notice: Label = $LootNotice
 
 var _loot_tween: Tween
 var _boss_notice_tween: Tween
+var _wave_tween: Tween
+var _action_tween: Tween
+var _boss_name := ""
+var _shield := 0
 var _shown_victory_loot_seconds := -1
 
 
@@ -33,7 +39,12 @@ func set_progress(level: int, abyss: String, realm: String, xp: int, required: i
 func set_health(current: int, maximum: int) -> void:
 	_health_bar.max_value = maximum
 	_health_bar.value = current
-	_health_label.text = "生命 %d / %d" % [current, maximum]
+	_health_label.text = "生命 %d / %d%s" % [current, maximum, "  ·  护盾 %d" % _shield if _shield > 0 else ""]
+
+
+func set_shield(amount: int) -> void:
+	_shield = amount
+	set_health(int(_health_bar.value), int(_health_bar.max_value))
 
 
 func set_survival_time(seconds: int) -> void:
@@ -45,7 +56,8 @@ func set_spirit_stones(amount: int) -> void:
 
 
 func show_boss(boss_name: String, maximum: int) -> void:
-	_boss_title.text = boss_name
+	_boss_name = boss_name
+	set_boss_stage(1)
 	_boss_bar.max_value = maximum
 	set_boss_health(maximum)
 	_boss_bar.show()
@@ -67,8 +79,40 @@ func set_boss_health(current: int) -> void:
 	_boss_label.text = "%d / %d" % [current, int(_boss_bar.max_value)]
 
 
+func set_boss_stage(stage: int) -> void:
+	_boss_title.text = "%s · %s" % [_boss_name, ["Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ"][stage - 1]]
+
+
+func show_wave_warning() -> void:
+	if _wave_tween != null:
+		_wave_tween.kill()
+	_wave_notice.show()
+	_wave_notice.modulate.a = 1.0
+	_wave_tween = create_tween()
+	_wave_tween.tween_property(_wave_notice, "modulate:a", 0.0, 0.25).set_delay(2.75)
+	_wave_tween.tween_callback(_wave_notice.hide)
+
+
+func clear_wave_warning() -> void:
+	if _wave_notice.visible:
+		_wave_notice.hide()
+
+
+func show_boss_action(action: String) -> void:
+	if _action_tween != null:
+		_action_tween.kill()
+	_boss_action.text = action
+	_boss_action.modulate.a = 1.0
+	_boss_action.show()
+	_action_tween = create_tween()
+	_action_tween.tween_property(_boss_action, "modulate:a", 0.0, 0.24).set_delay(1.15)
+	_action_tween.tween_callback(_boss_action.hide)
+
+
 func show_victory_loot(seconds: int) -> void:
 	_boss_bar.hide()
+	_wave_notice.hide()
+	_boss_action.hide()
 	if _boss_notice_tween != null:
 		_boss_notice_tween.kill()
 	_boss_notice.hide()

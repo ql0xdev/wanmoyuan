@@ -1,4 +1,6 @@
 extends SceneTree
+
+const DemonLord = preload("res://scenes/enemies/demon_lord.gd")
 ## 用隔离的用户数据目录依次运行：play、exit、reload、invalid。
 
 const Cultivation = preload("res://scripts/cultivation_catalog.gd")
@@ -215,7 +217,8 @@ func _test_play(save: Node) -> void:
 	await scene_changed
 	cave = current_scene
 	cave._breakthrough.pressed.emit()
-	_expect(save.realm() == "gold_core" and save.spirit_stones() == 20 and save.skill_points() == 3 and cave._breakthrough.disabled, "金丹突破后到顶")
+	_expect(save.realm() == "gold_core" and save.spirit_stones() == 20 and save.skill_points() == 3
+		and cave._breakthrough.disabled and "元婴" in cave._breakthrough.text, "金丹突破后显示尚无足够灵石突破元婴")
 	cave._skill_nodes.fire.button.pressed.emit()
 	cave._skill_nodes.blink.button.pressed.emit()
 	_expect(save.skill_points() == 0 and save.learned_skills().has("fire") and save.learned_skills().has("blink"), "领悟离火印和缩地成寸")
@@ -596,7 +599,7 @@ func _kill_boss(battle: Node, offset: Vector3) -> void:
 	battle._physics_process(0.02)
 	_expect(not battle._boss_spawned, "180 秒之前不刷魔尊")
 	battle._physics_process(0.04)
-	var boss: Node3D = battle._living_enemies.back()
+	var boss: Node3D = battle._living_enemies.filter(func(enemy: Node3D) -> bool: return enemy is DemonLord).front()
 	var health: int = {"outer": 800, "middle": 2400, "inner": 6400}[battle._abyss_id]
 	_expect(battle._boss_spawned and boss.max_health == health and boss.period_multiplier == battle._abyss.boss_period, "180 秒刷对应魔尊")
 	boss.global_position = battle._player.global_position + offset

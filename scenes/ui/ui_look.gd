@@ -29,6 +29,13 @@ static func swatch(color: Color, shape_size: Vector2i) -> ImageTexture:
 	return ImageTexture.create_from_image(image)
 
 
+static func evolution_box(hover := false) -> StyleBoxFlat:
+	var style := box(Color("#634923") if hover else Color("#3d2c18"), GOLD, 3, 8, 8)
+	style.shadow_color = Color(0.98, 0.69, 0.29, 0.36)
+	style.shadow_size = 7
+	return style
+
+
 static func skin_buttons(root: Node) -> void:
 	if root is Button:
 		skin_button(root)

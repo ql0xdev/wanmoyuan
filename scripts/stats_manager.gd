@@ -31,7 +31,7 @@ func rebuild_equipment(equipment: Dictionary) -> void:
 		for group: Dictionary in [Equipment.base_stats(item), item.affixes]:
 			for stat: String in group:
 				_gear[stat] = _gear.get(stat, 0.0) + group[stat]
-	cooldown_multiplier = maxf(1.0 - COOLDOWN_CAP, _factor("cooldown", -1.0))
+	cooldown_multiplier = maxf(1.0 - COOLDOWN_CAP, _remaining("cooldown"))
 	magnet_radius = BASE_MAGNET_RADIUS * _factor("magnet")
 
 
@@ -49,7 +49,7 @@ func damage(base: int) -> int:
 
 
 func damage_taken_multiplier() -> float:
-	return maxf(1.0 - MITIGATION_CAP, _factor("mitigation", -1.0) * (0.8 if has_pill("guard") else 1.0))
+	return maxf(1.0 - MITIGATION_CAP, _remaining("mitigation") * (0.8 if has_pill("guard") else 1.0))
 
 
 func incoming_damage(base: int) -> int:
@@ -80,5 +80,9 @@ func use_pill(id: String) -> void:
 	_pills[id] = true
 
 
-func _factor(stat: String, direction := 1.0) -> float:
-	return (1.0 + direction * _passive.get(stat, 0.0)) * (1.0 + direction * _gear.get(stat, 0.0))
+func _factor(stat: String) -> float:
+	return (1.0 + _passive.get(stat, 0.0)) * (1.0 + _gear.get(stat, 0.0))
+
+
+func _remaining(stat: String) -> float:
+	return maxf(0.0, 1.0 - _passive.get(stat, 0.0)) * maxf(0.0, 1.0 - _gear.get(stat, 0.0))

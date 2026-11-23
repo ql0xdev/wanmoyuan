@@ -5,7 +5,7 @@ const SLOTS := {
 	"armor": {"name": "护甲", "item": "道袍", "base": {"health": 0.18, "mitigation": 0.04}},
 	"accessory": {"name": "饰品", "item": "灵佩", "base": {"move_speed": 0.05, "cooldown": 0.04, "stone_amount": 0.08}},
 }
-const TIERS := ["炼气", "筑基", "金丹"]
+const TIERS := ["炼气", "筑基", "金丹", "元婴", "化神", "渡劫"]
 const QUALITIES := ["法器", "灵器", "宝器", "仙器"]
 const COLORS := [Color("#b0b8c0"), Color("#4caf50"), Color("#42a5f5"), Color("#ab47bc")]
 const SALVAGE := [5, 15, 40, 100]
@@ -55,8 +55,9 @@ static func is_valid(item: Variant) -> bool:
 		var value: Variant = affixes[stat]
 		if not AFFIXES.has(stat) or not (value is float or value is int):
 			return false
-		# 不按当前掉落区间拒绝旧装备，方便后续调整掉落值而不破坏存档。
-		if not is_finite(value) or value <= 0.0 or value > (1000.0 if _flat(stat) else 1.0):
+		# 保留旧档的宽松上限，同时允许高阶百分比词条大于 100%。
+		var limit := 1000.0 if _flat(stat) else maxf(1.0, snappedf(AFFIXES[stat].max * (1 << int(tier)), 0.01))
+		if not is_finite(value) or value <= 0.0 or float(value) > limit + 0.000001:
 			return false
 	return true
 

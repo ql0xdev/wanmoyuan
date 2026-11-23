@@ -31,6 +31,13 @@ const DEATH_DURATION := 0.20
 @onready var _visual_bounds := _body.transform * _body.get_aabb()
 
 var speed_multiplier := 1.0
+var spawn_id := 0
+var _slow_left := 0.0
+var _slow_factor := 1.0
+var _frozen_left := 0.0
+var _shock_left := 0.0
+var _shock_amp := 0.0
+var _dots := {}
 var _health := 0
 var _target: Player
 
@@ -71,7 +78,12 @@ func spawn(at: Vector3, target: Player) -> void:
 	global_position = at
 	_target = target
 	_health = max_health
+	spawn_id += 1
 	speed_multiplier = 1.0
+	_slow_left = 0.0
+	_frozen_left = 0.0
+	_shock_left = 0.0
+	_dots.clear()
 	velocity = Vector3.ZERO
 	_body.scale = _base_scale
 	_body.material_override = _base_material
@@ -83,12 +95,63 @@ func spawn(at: Vector3, target: Player) -> void:
 func _physics_process(delta: float) -> void:
 	if _health <= 0 or not _target.is_alive():
 		return
-	velocity = _move_velocity(delta)
-	move_and_slide()
+	_update_statuses(delta)
+	if _health <= 0:
+		return
+	var frozen := _frozen_left > 0.0
+	if frozen:
+		_frozen_left = maxf(0.0, _frozen_left - delta)
+		velocity = Vector3.ZERO
+	else:
+		velocity = _move_velocity(delta)
+		if _slow_left > 0.0:
+			velocity *= _slow_factor
+		move_and_slide()
 	# 首次移动同步物理位置后才让玩家和飞剑检测到它，避免旧位置产生碰撞。
 	if collision_layer == 0:
 		collision_layer = ENEMY_LAYER
-	_update_attack(delta)
+	if not frozen:
+		_update_attack(delta)
+
+
+func apply_slow(factor: float, duration: float) -> void:
+	_slow_factor = factor
+	_slow_left = duration
+
+
+func freeze(duration: float) -> void:
+	_frozen_left = maxf(_frozen_left, duration)
+
+
+func shock(amp: float, duration: float) -> void:
+	_shock_amp = amp
+	_shock_left = duration
+
+
+func apply_dot(id: String, amount: int, ticks: int) -> void:
+	_dots[id] = {"amount": amount, "remaining": ticks, "until_tick": 1.0}
+
+
+func _update_statuses(delta: float) -> void:
+	_slow_left = maxf(0.0, _slow_left - delta)
+	if not _dots.is_empty():
+		for id: String in _dots.keys():
+			var dot: Dictionary = _dots[id]
+			dot.until_tick -= delta
+			while dot.until_tick <= 0.000001 and dot.remaining > 0:
+				dot.until_tick += 1.0
+				dot.remaining -= 1
+				take_damage(dot.amount)
+				if _health <= 0:
+					return
+			if dot.remaining == 0:
+				_dots.erase(id)
+	_shock_left = maxf(0.0, _shock_left - delta)
+
+
+func reflect_damage(amount: int, generation: int) -> void:
+	if spawn_id == generation and _target != null and _target.accepts_damage and _target.is_alive():
+		take_damage(amount)
 
 
 func _reset_behavior() -> void:
@@ -106,6 +169,8 @@ func _update_attack(_delta: float) -> void:
 func take_damage(amount: int, critical := false) -> void:
 	if _health <= 0 or amount <= 0:
 		return
+	if _shock_left > 0.0:
+		amount = roundi(amount * (1.0 + _shock_amp))
 	_health = maxi(0, _health - amount)
 	health_changed.emit(_health)
 	damaged.emit(_body.global_position + Vector3.UP * (body_radius + 5.0), amount, critical)

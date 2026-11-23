@@ -2,6 +2,7 @@ extends SceneTree
 ## 桌面渲染验收：真实胜利前计时跑到 180，再截图，不改战斗计时字段。
 
 const START := "res://scenes/ui/start_menu.tscn"
+const DemonLord = preload("res://scenes/enemies/demon_lord.gd")
 const CAVE_ENTER := "SafeArea/Margin/Content/Enter"
 
 var _output: String
@@ -75,7 +76,7 @@ func _run() -> void:
 	if not is_instance_valid(battle) or not battle._boss_spawned:
 		quit(1)
 		return
-	var enemy: Node3D = battle._living_enemies.back()
+	var enemy: Node3D = battle._living_enemies.filter(func(node: Node3D) -> bool: return node is DemonLord).front()
 	_expect(enemy.max_health == 800 and is_equal_approx(battle._hud._boss_bar.max_value, 800.0)
 		and battle._hud._boss_bar.size.y >= 70.0, "外渊原有 Boss 血量不变，血条已加粗")
 	var shake_seen := false

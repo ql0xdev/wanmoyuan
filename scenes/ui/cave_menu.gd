@@ -38,6 +38,8 @@ var _passive_nodes := {}
 var _stat_values: Array[Label] = []
 var _learned_card := Look.box(Look.BACKGROUND, Look.GOLD)
 var _locked_card := Look.box(Look.BACKGROUND, Look.BORDER)
+var _evolution_card := Look.evolution_box()
+var _evolution_hover := Look.evolution_box(true)
 var _abyss_buttons := {}
 var _loadout_buttons := {}
 var _skill_options: VBoxContainer
@@ -99,7 +101,7 @@ func _refresh() -> void:
 
 	var target: String = Catalog.REALMS[SaveManager.realm()].next
 	_breakthrough.disabled = target.is_empty() or SaveManager.spirit_stones() < Catalog.REALMS[target].cost
-	_breakthrough.text = "已达金丹" if target.is_empty() else "突破·%s（%d 灵石）" % [Catalog.REALMS[target].name, Catalog.REALMS[target].cost]
+	_breakthrough.text = "已达%s" % SaveManager.realm_name() if target.is_empty() else "突破·%s（%d 灵石）" % [Catalog.REALMS[target].name, Catalog.REALMS[target].cost]
 	_breakthrough_bar.visible = not target.is_empty()
 	_breakthrough_progress.visible = not target.is_empty()
 	if not target.is_empty():
@@ -362,12 +364,30 @@ func _refresh_preparation() -> void:
 		button.disabled = not SaveManager.is_unlocked(id)
 		button.set_pressed_no_signal(id == _selected_abyss)
 		var context := "需突破%s" % Catalog.REALMS[abyss.realm].name if button.disabled else ("已通关" if SaveManager.has_cleared(id) else "可进入")
-		button.text = "%s　·　%s" % [abyss.name, context]
+		button.text = "%s　·　%d 秒　·　%s" % [abyss.name, abyss.duration, context]
+	var hints := {}
+	var passives := SaveManager.passive_levels()
+	for id: String in _loadout:
+		if Catalog.evolution_matches(id, _loadout, passives):
+			var evolution: Dictionary = Catalog.EVOLUTIONS[id]
+			hints[id] = true
+			if evolution.has("partner"):
+				hints[evolution.partner] = true
 	for id: String in _loadout_buttons:
 		var button: Button = _loadout_buttons[id]
 		var selected := _loadout.has(id)
 		button.set_pressed_no_signal(selected)
 		button.disabled = not selected and _loadout.size() >= Catalog.MAX_LOADOUT
+		var data: Dictionary = Catalog.SKILL_DATA[id]
+		button.text = "%s　·　%s%s" % [data.name, "攻击" if data.attack else "辅助", "　·　可进化" if hints.has(id) else ""]
+		if hints.has(id):
+			button.add_theme_stylebox_override("pressed", _evolution_card)
+			button.add_theme_stylebox_override("hover_pressed", _evolution_hover)
+			button.add_theme_color_override("font_pressed_color", Look.GOLD)
+		else:
+			button.remove_theme_stylebox_override("pressed")
+			button.remove_theme_stylebox_override("hover_pressed")
+			button.remove_theme_color_override("font_pressed_color")
 	var first := Catalog.first_attack(_loadout)
 	var label := "请选择一个攻击功法" if first.is_empty() else "开局 %s；其余通过升级习得" % Catalog.SKILL_DATA[first].name
 	_prep_info.text = "已选 %d/%d · %s" % [_loadout.size(), Catalog.MAX_LOADOUT, label]

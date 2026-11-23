@@ -1,6 +1,7 @@
 extends Node3D
 
 const ObjectPool = preload("res://scripts/object_pool.gd")
+const SpawnManager = preload("res://scripts/spawn_manager.gd")
 const BattlePlane = preload("res://scripts/battle_plane.gd")
 const BattleCamera = preload("res://scenes/world/battle_camera.gd")
 const BattleGround = preload("res://scenes/world/battle_ground.gd")
@@ -41,16 +42,6 @@ const STONE_DROP_OFFSET := Vector3(24.0, 0.0, -24.0)
 const EQUIPMENT_DROP_OFFSET := Vector3(-22.0, 0.0, 22.0)
 const EQUIPMENT_SPREAD := 54.0
 const MAX_ENEMIES := 100
-const BASE_SPAWN_INTERVAL := 1.5
-const MIN_SPAWN_INTERVAL := 0.4
-const RAMP_STEP := 30.0
-const RAMP_MULTIPLIER := 1.20
-const CROW_START := 40.0
-const GOLEM_START := 90.0
-const GOLEM_INTERVAL := 30.0
-const BOSS_START := 180.0
-const BOSS_SUMMON_COUNT := 4
-const BOSS_SUMMON_RADIUS := 66.0
 const VICTORY_SLOW_DURATION := 0.5
 const VICTORY_TIME_SCALE := 0.45
 const VICTORY_LOOT_SECONDS := 10
@@ -86,9 +77,7 @@ var _equipment_pool: ObjectPool
 var _living_enemies: Array[Enemy] = []
 var _active_enemy_count := 0
 var _elapsed := 0.0
-var _spawn_progress := 0.0
-var _spawn_mix_index := 0
-var _next_golem_at := GOLEM_START
+var _spawns: SpawnManager
 var _boss_spawned := false
 var _phase := Phase.BATTLE
 var _previous_time_scale := 1.0
@@ -124,6 +113,7 @@ func _ready() -> void:
 	Look.skin_buttons($TouchUI/SafeArea)
 	Look.animate_panel(_gear_overlay, _gear_overlay)
 	_abyss = Cultivation.ABYSSES[_abyss_id]
+	_spawns = SpawnManager.new(_abyss)
 	_inventory.setup(SaveManager.equipped_items())
 	_player.stats.configure(SaveManager.realm(), SaveManager.passive_levels(), _inventory.worn)
 	_player.refresh_equipment(true)
@@ -141,7 +131,7 @@ func _ready() -> void:
 	_ground.follow(_camera.focus)
 	_ground.set_abyss_tint(_abyss.color)
 	_effects.configure(_camera.presentation, $DeathBursts)
-	_skills.configure(_player, _living_enemies, _launch_sword, _camera, _loadout)
+	_skills.configure(_player, _living_enemies, _launch_sword, _camera, _loadout, SaveManager.passive_levels())
 	_joystick.reserved_buttons.assign([_hud.shop_button, _hud.bag_button, _hud.menu_button])
 	_joystick.reserved_button_tapped.connect(_on_battle_button_tapped)
 	_hud.shop_button.pressed.connect(_open_shop)
@@ -157,6 +147,7 @@ func _ready() -> void:
 	_skills.swords_cast.connect(_audio.play_cue.bind(BattleAudio.Cue.SWORD))
 	_skills.lightning_cast.connect(_audio.play_cue.bind(BattleAudio.Cue.LIGHTNING))
 	_player.hit.connect(_audio.play_cue.bind(BattleAudio.Cue.HIT))
+	_player.shield_changed.connect(_hud.set_shield)
 	_hud.set_health(_player.health, _player.max_health)
 	_hud.set_spirit_stones(_spirit_stones)
 	_refresh_hud()
@@ -173,26 +164,13 @@ func _physics_process(delta: float) -> void:
 		return
 	if _phase != Phase.BATTLE:
 		return
-	# 只累计实际战斗时间，通过刷新进度在提速时保留本轮已经等待的时间。
-	_spawn_progress += delta / _spawn_interval(_elapsed)
+	var previous := _elapsed
 	_elapsed += delta
-	while _spawn_progress + TIME_EPSILON >= 1.0 and _can_spawn_regular():
-		_spawn_progress -= 1.0
-		if _elapsed + TIME_EPSILON >= CROW_START:
-			_spawn_enemy(_crow_pool if _spawn_mix_index == 0 else _wolf_pool)
-			_spawn_mix_index = (_spawn_mix_index + 1) % 3
-		else:
-			_spawn_enemy(_wolf_pool)
-
-	# 满员只保留一次待刷，避免腾出位置后连续补刷。
-	_spawn_progress = minf(_spawn_progress, 1.0)
-	if _elapsed + TIME_EPSILON >= _next_golem_at and _active_enemy_count < _enemy_limit(_golem_pool):
-		_spawn_enemy(_golem_pool)
-		var interval: float = GOLEM_INTERVAL / _abyss.density
-		_next_golem_at += interval * (1 + floori((_elapsed + TIME_EPSILON - _next_golem_at) / interval))
-
-	if not _boss_spawned and _elapsed + TIME_EPSILON >= BOSS_START:
+	if not _boss_spawned and _elapsed + TIME_EPSILON >= _abyss.duration:
 		_spawn_boss()
+	_spawns.advance(previous, _elapsed, _player.global_position, _warn_wave, _spawn_regular_kind, _spawn_kind_at)
+	if not _spawns.warning_active():
+		_hud.clear_wave_warning()
 
 	var whole_second := floori(_elapsed + TIME_EPSILON)
 	if whole_second != _shown_second:
@@ -207,14 +185,11 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 
 func _spawn_interval(elapsed: float) -> float:
-	var ramps := floori((elapsed + TIME_EPSILON) / RAMP_STEP)
-	# 频率按阶段乘 1.2，对应的刷新间隔按阶段缩短。
-	return maxf(MIN_SPAWN_INTERVAL, BASE_SPAWN_INTERVAL / pow(RAMP_MULTIPLIER, ramps)) / _abyss.density
+	return _spawns.interval_at(elapsed)
 
 
 func _connect_enemy(enemy: Enemy, recycle: Callable) -> void:
-	var health_scale: float = _abyss.boss_health if enemy is DemonLord else _abyss.health
-	enemy.apply_difficulty(health_scale, _abyss.damage, _abyss.scale, _abyss.color, _enemy_visuals, _enemy_shapes)
+	enemy.apply_difficulty(_abyss.health, _abyss.damage, _abyss.scale, _abyss.color, _enemy_visuals, _enemy_shapes)
 	enemy.died.connect(_on_enemy_died)
 	enemy.death_finished.connect(recycle)
 	enemy.damaged.connect(_effects.show_damage)
@@ -223,16 +198,19 @@ func _connect_enemy(enemy: Enemy, recycle: Callable) -> void:
 
 func _connect_crow(crow: CrowDemon) -> void:
 	_connect_enemy(crow, _recycle_crow)
-	crow.orb_cast.connect(_launch_orb)
+	crow.orb_cast.connect(_launch_orb.bind(false, crow))
 
 
 func _connect_boss(boss: DemonLord) -> void:
 	_connect_enemy(boss, _recycle_boss)
+	boss.max_health = _abyss.boss_health
 	boss.period_multiplier = _abyss.boss_period
 	boss.flame_damage = roundi(DemonLord.FLAME_DAMAGE * _abyss.damage)
 	boss.health_changed.connect(_hud.set_boss_health)
-	boss.flame_cast.connect(_launch_orb.bind(true))
-	boss.wolves_summoned.connect(_summon_wolves)
+	boss.flame_cast.connect(_launch_orb.bind(true, boss))
+	boss.minions_summoned.connect(_spawns.queue_summon)
+	boss.stage_changed.connect(_hud.set_boss_stage)
+	boss.action_started.connect(_hud.show_boss_action)
 
 
 func _connect_orb(orb: MagicOrb) -> void:
@@ -263,15 +241,23 @@ func _spawn_enemy(pool: ObjectPool) -> Enemy:
 
 
 func _enemy_limit(pool: ObjectPool) -> int:
-	# 开场提前给第 180 秒出现的魔尊预留一格，不抢占或回收活怪。
+	# 开场提前给魔尊预留一格，不抢占或回收活怪。
 	return MAX_ENEMIES if _boss_spawned or pool == _boss_pool else MAX_ENEMIES - 1
 
 
-func _can_spawn_regular() -> bool:
-	var limit := _enemy_limit(_wolf_pool)
-	if _elapsed + TIME_EPSILON >= _next_golem_at:
-		limit -= 1
-	return _active_enemy_count < limit
+func _pool_for_kind(kind: int) -> ObjectPool:
+	match kind:
+		SpawnManager.Kind.CROW: return _crow_pool
+		SpawnManager.Kind.GOLEM: return _golem_pool
+		_: return _wolf_pool
+
+
+func _spawn_regular_kind(kind: int) -> bool:
+	return _spawn_enemy(_pool_for_kind(kind)) != null
+
+
+func _spawn_kind_at(kind: int, at: Vector3) -> bool:
+	return _spawn_enemy_at(_pool_for_kind(kind), at) != null
 
 
 func _spawn_enemy_at(pool: ObjectPool, position_in_world: Vector3) -> Enemy:
@@ -296,13 +282,9 @@ func _spawn_boss() -> void:
 	_camera.shake_view()
 
 
-func _summon_wolves(origin: Vector3) -> void:
-	if _phase != Phase.BATTLE:
-		return
-	var available := mini(BOSS_SUMMON_COUNT, _enemy_limit(_wolf_pool) - _active_enemy_count)
-	for i in range(available):
-		var offset := BattlePlane.direction(TAU * i / BOSS_SUMMON_COUNT) * BOSS_SUMMON_RADIUS
-		_spawn_enemy_at(_wolf_pool, origin + offset)
+func _warn_wave() -> void:
+	_hud.show_wave_warning()
+	_audio.play_cue(BattleAudio.Cue.WAVE)
 
 
 func _outside_screen_position(model_bounds := AABB()) -> Vector3:
@@ -344,9 +326,9 @@ func _launch_sword(origin: Vector3, direction: Vector3, damage: int) -> void:
 	sword.launch(origin, direction, damage)
 
 
-func _launch_orb(origin: Vector3, direction: Vector3, damage: int, boss_flame := false) -> void:
+func _launch_orb(origin: Vector3, direction: Vector3, damage: int, boss_flame := false, source: Enemy = null) -> void:
 	var orb := _orb_pool.acquire() as MagicOrb
-	orb.launch(origin, direction, damage, _player, boss_flame)
+	orb.launch(origin, direction, damage, _player, boss_flame, source)
 
 
 func _on_enemy_died(enemy: Enemy) -> void:
@@ -384,9 +366,13 @@ func _roll_equipment(enemy: Enemy) -> void:
 	if enemy.equipment_chance < 1.0 and _loot_rng.randf() >= enemy.equipment_chance:
 		return
 	var center := enemy.global_position + (EQUIPMENT_DROP_OFFSET if enemy.crystal_count > 0 else Vector3.ZERO)
-	for i in range(enemy.equipment_count):
-		var item := Equipment.roll(_abyss.tier, enemy.purple_chance, _loot_rng)
-		var offset := Vector3.RIGHT * ((i - (enemy.equipment_count - 1) * 0.5) * EQUIPMENT_SPREAD)
+	var bonus: Dictionary = _abyss.get("bonus_drop", {})
+	var has_bonus := enemy is DemonLord and not bonus.is_empty() and Cultivation.realm_at_least(SaveManager.realm(), bonus.realm)
+	var count := enemy.equipment_count + int(has_bonus)
+	for i in range(count):
+		var tier: int = bonus.tier if has_bonus and i == enemy.equipment_count else _abyss.tier
+		var item := Equipment.roll(tier, enemy.purple_chance, _loot_rng)
+		var offset := Vector3.RIGHT * ((i - (count - 1) * 0.5) * EQUIPMENT_SPREAD)
 		_drop_equipment(center + offset, item)
 
 
@@ -567,12 +553,15 @@ func _salvage_loot(id: int) -> void:
 func _show_level_up() -> void:
 	_choices = _skills.roll_choices()
 	var cards := PackedStringArray()
+	var gold_index := -1
 	for skill in _choices:
+		if _skills.is_evolution_card(skill):
+			gold_index = cards.size()
 		cards.append(_skills.card_text(skill))
 	# 暂停前清除旧触点，防止松手发生在暂停期间、恢复后角色仍在移动。
 	_joystick.reset()
 	get_tree().paused = true
-	_upgrade_menu.open(cards)
+	_upgrade_menu.open(cards, gold_index)
 	_audio.play_cue(BattleAudio.Cue.LEVEL_UP)
 
 
@@ -603,6 +592,7 @@ func _begin_victory() -> void:
 	# 魔尊一死就锁定胜利与统计，慢动作期间不能再受伤或触发升级。
 	_phase = Phase.VICTORY_SLOW
 	_player.accepts_damage = false
+	_skills.set_physics_process(false)
 	_upgrade_menu.hide()
 	_shop_menu.hide()
 	_gear_overlay.hide()

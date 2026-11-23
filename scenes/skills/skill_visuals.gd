@@ -2,6 +2,9 @@ extends Node3D
 
 const SPHERE := preload("res://scenes/world/sphere_mesh.tres")
 const HEAL_FLASH_TIME := 0.32
+const WISP_SLOTS := 12
+const PULSE_SLOTS := 12
+const PULSE_TIME := 0.46
 
 var _fire: Array[MeshInstance3D] = []
 var _bolts: Array[MeshInstance3D] = []
@@ -9,6 +12,17 @@ var _impacts: Array[MeshInstance3D] = []
 var _ice: MeshInstance3D
 var _heal: MeshInstance3D
 var _heal_left := 0.0
+var _wisps: Array[MeshInstance3D] = []
+var _blades: Array[MeshInstance3D] = []
+var _pulses: Array[Dictionary] = []
+var _pulse_index := 0
+var _pulse_mesh: TorusMesh
+var _wisp_material: StandardMaterial3D
+var _blast_material: StandardMaterial3D
+var _guard: MeshInstance3D
+var _shield: MeshInstance3D
+var _thunder: MeshInstance3D
+var _thunder_left := 0.0
 
 
 func setup(orb_radius: float, ice_radius: float, lightning_radius: float, max_orbs: int, max_bolts: int) -> void:
@@ -45,6 +59,100 @@ func update_orbs(origin: Vector3, offsets: PackedVector3Array) -> void:
 func update_ice(origin: Vector3) -> void:
 	_ice.global_position = origin + Vector3.UP * 1.0
 	_ice.show()
+
+
+func hide_ice() -> void:
+	_ice.hide()
+
+
+func update_ascension(origin: Vector3, delta: float, shield: int, guard: bool) -> void:
+	if guard:
+		if _guard == null:
+			_guard = _mesh(_ring(48.0, 5.0), _glow(Color("#fbc779")))
+		_guard.global_position = origin + Vector3.UP * 8.0
+		_guard.show()
+	if shield > 0:
+		if _shield == null:
+			_shield = _mesh(_ring(41.0, 4.0), _glow(Color("#72f0d6")))
+		_shield.global_position = origin + Vector3.UP * 24.0
+		_shield.show()
+	elif _shield != null:
+		_shield.hide()
+	for pulse_data in _pulses:
+		if pulse_data.left <= 0.0:
+			continue
+		pulse_data.left -= delta
+		if pulse_data.left <= 0.0:
+			pulse_data.node.hide()
+		else:
+			var scale_at := lerpf(0.22, 1.0, 1.0 - pulse_data.left / PULSE_TIME) * float(pulse_data.radius)
+			pulse_data.node.scale = Vector3(scale_at, 6.5, scale_at)
+			pulse_data.color.albedo_color.a = 0.84 * pulse_data.left / PULSE_TIME
+	if _thunder_left > 0.0:
+		_thunder_left -= delta
+		if _thunder_left <= 0.0:
+			_thunder.hide()
+
+
+func pulse(at: Vector3, radius: float, tint: Color, thunder := false) -> void:
+	if _pulse_mesh == null:
+		_pulse_mesh = _ring(1.0, 0.048)
+		for i in range(PULSE_SLOTS):
+			var material := StandardMaterial3D.new()
+			material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			_pulses.append({"node": _mesh(_pulse_mesh, material), "color": material, "radius": 0.0, "left": 0.0})
+	var entry := _pulses[_pulse_index]
+	_pulse_index = (_pulse_index + 1) % _pulses.size()
+	entry.left = PULSE_TIME
+	entry.radius = radius
+	entry.color.albedo_color = tint
+	entry.node.global_position = at + Vector3.UP * 5.0
+	entry.node.scale = Vector3(radius * 0.22, 6.5, radius * 0.22)
+	entry.node.show()
+	if thunder:
+		if _thunder == null:
+			var bolt := CylinderMesh.new()
+			bolt.top_radius = 6.0
+			bolt.bottom_radius = 11.0
+			bolt.height = 270.0
+			bolt.radial_segments = 8
+			_thunder = _mesh(bolt, _glow(Color("#ffae64"), 1.5))
+		_thunder.global_position = at + Vector3.UP * 135.0
+		_thunder_left = 0.23
+		_thunder.show()
+
+
+func show_wisp(slot: int, at: Vector3, blast: bool) -> void:
+	if _wisps.is_empty():
+		_wisp_material = _glow(Color("#85efa9"), 1.3)
+		_blast_material = _glow(Color("#dc83ff"), 1.5)
+		for i in range(WISP_SLOTS):
+			_wisps.append(_mesh(SPHERE, _wisp_material))
+	var wisp := _wisps[slot]
+	wisp.material_override = _blast_material if blast else _wisp_material
+	wisp.scale = Vector3(12.0, 19.0, 12.0) if blast else Vector3(9.0, 15.0, 9.0)
+	wisp.global_position = at + Vector3.UP * 26.0
+	wisp.show()
+
+
+func hide_wisp(slot: int) -> void:
+	_wisps[slot].hide()
+
+
+func show_blades(origin: Vector3, offsets: PackedVector3Array) -> void:
+	if _blades.is_empty():
+		var mesh := PrismMesh.new()
+		mesh.size = Vector3(13.0, 32.0, 6.0)
+		var material := _glow(Color("#fff4a3"), 1.35)
+		for i in range(offsets.size()):
+			_blades.append(_mesh(mesh, material))
+	for i in range(offsets.size()):
+		var blade := _blades[i]
+		var offset := offsets[i]
+		blade.global_position = origin + offset + Vector3.UP * 30.0
+		blade.rotation = Vector3(deg_to_rad(28.0), -atan2(offset.z, offset.x), deg_to_rad(-24.0))
+		blade.show()
 
 
 func show_lightning(points: PackedVector3Array) -> void:

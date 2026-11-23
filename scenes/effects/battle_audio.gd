@@ -1,9 +1,9 @@
 extends Node
 
-enum Cue { SWORD, LIGHTNING, HIT, LEVEL_UP, PURCHASE }
+enum Cue { SWORD, LIGHTNING, HIT, LEVEL_UP, PURCHASE, WAVE }
 
 const SAMPLE_RATE := 22050
-const DURATIONS := [0.13, 0.27, 0.18, 0.45, 0.26]
+const DURATIONS := [0.13, 0.27, 0.18, 0.45, 0.26, 0.83]
 var _players: Array[AudioStreamPlayer] = []
 
 
@@ -42,6 +42,8 @@ func _make_sound(cue: int, duration: float) -> AudioStreamWAV:
 				sample = _note(t, 0.0, 523.25, 0.21) + _note(t, 0.09, 659.25, 0.22) + _note(t, 0.17, 783.99, 0.28)
 			Cue.PURCHASE:
 				sample = _note(t, 0.0, 880.0, 0.12) + _note(t, 0.065, 1318.51, 0.19)
+			Cue.WAVE:
+				sample = _note(t, 0.0, 106.0, 0.54) + _note(t, 0.24, 84.0, 0.58)
 		sample *= minf(t / 0.005, 1.0)
 		samples.encode_s16(i * 2, roundi(clampf(sample, -1.0, 1.0) * 24000.0))
 	var sound := AudioStreamWAV.new()

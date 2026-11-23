@@ -11,16 +11,20 @@ const FLAME_MATERIAL := preload("res://scenes/world/boss_flame_material.tres")
 @onready var _body: MeshInstance3D = $Orb
 @onready var _base_material := _body.material_override
 var _target: Player
+var _source: Node3D
+var _source_id := 0
 var _direction := Vector3.ZERO
 var _damage := 0
 var _time_left := 0.0
 
 
-func launch(at: Vector3, direction: Vector3, damage: int, target: Player, boss_flame := false) -> void:
+func launch(at: Vector3, direction: Vector3, damage: int, target: Player, boss_flame := false, source: Node3D = null) -> void:
 	global_position = at
 	_direction = direction if direction != Vector3.ZERO else Vector3.RIGHT
 	_damage = damage
 	_target = target
+	_source = source
+	_source_id = source.spawn_id if source != null else 0
 	_time_left = LIFETIME
 	_body.material_override = FLAME_MATERIAL if boss_flame else _base_material
 
@@ -31,7 +35,8 @@ func _physics_process(delta: float) -> void:
 	# 法球按发射时的方向直飞，只检测玩家，不会打到别的敌人。
 	var closest := Geometry3D.get_closest_point_to_segment(_target.global_position, start, end)
 	if closest.distance_squared_to(_target.global_position) <= HIT_RADIUS * HIT_RADIUS:
-		_target.take_damage(_damage)
+		var source := _source if is_instance_valid(_source) and _source.spawn_id == _source_id else null
+		_target.take_damage(_damage, source)
 		_finish()
 		return
 
@@ -43,4 +48,5 @@ func _physics_process(delta: float) -> void:
 
 func _finish() -> void:
 	_target = null
+	_source = null
 	finished.emit(self)

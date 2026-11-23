@@ -1,7 +1,8 @@
 extends Node
 
 const SAVE_PATH := "user://save.cfg"
-const SAVE_VERSION := 1
+const SAVE_VERSION := 4
+const LEGACY_VERSION := 1
 const Catalog = preload("res://scripts/cultivation_catalog.gd")
 const Equipment = preload("res://scripts/equipment_catalog.gd")
 const DEFAULT_PROFILE := {
@@ -75,7 +76,7 @@ func equipped_items() -> Dictionary:
 
 
 func is_unlocked(secret_realm: String) -> bool:
-	return Catalog.ABYSSES.has(secret_realm) and Catalog.REALMS[realm()].rank >= Catalog.REALMS[Catalog.ABYSSES[secret_realm].realm].rank
+	return Catalog.ABYSSES.has(secret_realm) and Catalog.realm_at_least(realm(), Catalog.ABYSSES[secret_realm].realm)
 
 
 func valid_loadout(loadout: Array) -> bool:
@@ -138,7 +139,7 @@ func breakthrough() -> Error:
 	var next_profile := _profile.duplicate(true)
 	next_profile["spirit_stones"] -= cost
 	next_profile["realm"] = target
-	next_profile["skill_points"] += 3
+	next_profile["skill_points"] += Catalog.BREAKTHROUGH_POINTS
 	return _commit_profile(next_profile)
 
 
@@ -211,12 +212,15 @@ func _load_profile() -> Error:
 	var error := config.load(SAVE_PATH)
 	if error != OK:
 		return error
-	var version: Variant = config.get_value("save", "version", 0)
-	if not version is int or version != SAVE_VERSION:
+	var legacy := not config.has_section_key("save", "save_version")
+	var version: Variant = config.get_value("save", "version" if legacy else "save_version", 0)
+	if not version is int or version != (LEGACY_VERSION if legacy else SAVE_VERSION):
 		return ERR_INVALID_DATA
 
 	var loaded := {}
 	for key: String in DEFAULT_PROFILE:
+		# V3 的字段名和数据结构不变；新境界、功法、秘境均按 ID 追加，
+		# 旧档缺少新条目就代表未解锁。首次正常保存时原子写成 V4。
 		var value: Variant = config.get_value("profile", key, null)
 		if typeof(value) != typeof(DEFAULT_PROFILE[key]):
 			return ERR_INVALID_DATA
@@ -229,7 +233,9 @@ func _load_profile() -> Error:
 
 
 func _valid_profile(profile: Dictionary) -> bool:
-	if profile.spirit_stones < 0 or profile.skill_points < 0 or profile.skill_points > 6 or not Catalog.REALMS.has(profile.realm):
+	if not Catalog.REALMS.has(profile.realm) or profile.spirit_stones < 0 or profile.skill_points < 0:
+		return false
+	if profile.skill_points > (Catalog.REALMS.size() - 1) * Catalog.BREAKTHROUGH_POINTS:
 		return false
 	var seen := {}
 	for skill: Variant in profile.learned_skills:
@@ -264,7 +270,7 @@ func _commit_profile(next_profile: Dictionary) -> Error:
 	if _load_error != OK:
 		return _load_error
 	var config := ConfigFile.new()
-	config.set_value("save", "version", SAVE_VERSION)
+	config.set_value("save", "save_version", SAVE_VERSION)
 	for key: String in next_profile:
 		config.set_value("profile", key, next_profile[key])
 	var temp_path := SAVE_PATH + ".tmp"
