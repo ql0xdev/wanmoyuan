@@ -22,8 +22,8 @@ script = ExtResource("1_player")
 shape = SubResource("CylinderShape3D_player")
 
 [node name="Body" type="MeshInstance3D" parent="."]
-position = Vector3(0, 132, 0)
-scale = Vector3(47, 105.6, 47)
+position = Vector3(0, 54, 0)
+scale = Vector3(28, 43.2, 28)
 cast_shadow = 0
 material_override = SubResource("StandardMaterial3D_player")
 mesh = ExtResource("2_capsule")

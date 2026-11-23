@@ -13,8 +13,8 @@ emission_energy_multiplier = 0.66
 script = ExtResource("1_pickup")
 
 [node name="Crystal" type="MeshInstance3D" parent="."]
-position = Vector3(0, 11, 0)
-scale = Vector3(8, 11, 8)
+position = Vector3(0, 16, 0)
+scale = Vector3(13, 16, 13)
 cast_shadow = 0
 material_override = SubResource("StandardMaterial3D_crystal")
 mesh = ExtResource("2_mesh")

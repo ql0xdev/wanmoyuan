@@ -4,6 +4,7 @@ const Catalog = preload("res://scripts/cultivation_catalog.gd")
 const Spawns = preload("res://scripts/spawn_manager.gd")
 const DemonLord = preload("res://scenes/enemies/demon_lord.gd")
 const Enemy = preload("res://scenes/enemies/enemy.gd")
+const MagnetPickup = preload("res://scenes/pickups/magnet_pickup.gd")
 const Skill = Catalog.Skill
 const CAVE := "res://scenes/ui/cave_menu.tscn"
 const BATTLE := "res://scenes/main.tscn"
@@ -42,6 +43,7 @@ func _run() -> void:
 			_expect(not _save.has_profile() and _save.load_error() == OK, "功能回归用空档")
 			_check_tables()
 			await _opening_and_cards()
+			await _pickup_values()
 			await _wave()
 			await _auras_and_hit_stop()
 			await _swords()
@@ -49,10 +51,13 @@ func _run() -> void:
 			await _time_and_settlement()
 		"legacy":
 			await _legacy(args[2] if args.size() >= 3 else "")
+		"pickup":
+			await _opening_and_cards()
+			await _pickup_values()
 		"stress":
 			await _stress()
 		_:
-			_expect(false, "full | capture <目录> | legacy <目录> [V4.1 存档路径] | stress <目录>")
+			_expect(false, "full | capture <目录> | pickup <目录> | legacy <目录> [V4.1 存档路径] | stress <目录>")
 	if _failures == 0:
 		print("V5.0 PASS: ", mode)
 	await create_timer(0.3, true, false, true).timeout
@@ -103,14 +108,31 @@ func _opening_and_cards() -> void:
 	var wolf: Enemy = battle._spawn_enemy_at(battle._wolf_pool, Vector3(250, 0, -170))
 	wolf.stone_drop_chance = 0.0
 	wolf.take_damage(wolf.max_health)
+	var drops := _visible_pickups(battle, "spirit_crystal.tscn")
+	_expect(drops.size() == 1 and drops[0].amount == 20, "妖狼死亡掉一颗价值 20 的修为灵石")
+	_expect(battle._xp == 0 and not battle._upgrade_menu.visible, "击杀本身不涨修为")
+	if drops.is_empty():
+		return
+	var crystal: MagnetPickup = drops[0]
+	var drop_at := crystal.global_position
+	crystal._physics_process(0.50)
+	_expect(crystal.visible and crystal.global_position == drop_at and battle._xp == 0, "距离过远，灵石留在地上")
+	if not _out.is_empty():
+		await create_timer(0.65).timeout
+	await _capture("返修01-击杀掉灵石但修为不涨")
+	battle._player.global_position = drop_at + Vector3.RIGHT * 55
+	crystal._physics_process(0.05)
+	_expect(crystal._magnet_active and crystal.visible and battle._xp == 0, "进拾取范围开始磁吸，入身前不加修为")
+	crystal._physics_process(0.35)
 	await process_frame
-	_expect(battle._upgrade_menu.visible and battle._xp == 20 and battle._spirit_stones == 0, "首杀直接给修为灵石，不需拾取")
+	_expect(not crystal.visible and battle._upgrade_menu.visible and battle._xp == 20 and battle._spirit_stones == 0,
+		"拾取完成才增加修为并弹牌，不计入可带走灵石")
 	var index := -1
 	for j in range(battle._choices.size()):
 		if battle._choices[j].type == "new" and battle._choices[j].id == Skill.SWORD_STORM:
 			index = j
 	_expect(index >= 0 and battle._choices.size() == 3, "已领悟未学的万剑诀进入三选一")
-	await _capture("验收09a-首杀三选一和新功法")
+	await _capture("返修02-拾取灵石后弹出三选一")
 	if index >= 0:
 		battle._upgrade_menu._buttons[index].pressed.emit()
 	_expect(battle._level == 2 and battle._xp_required == 26 and battle._xp == 0 and skills._levels[Skill.SWORD_STORM] > 0,
@@ -160,6 +182,33 @@ func _opening_and_cards() -> void:
 	skills._physics_process(0.01)
 	_expect(skills._ascension._blade_offsets.size() == 12, "进化环绕剑实际 12 把")
 	await _capture("验收10c-进化后十二剑和腾出一格")
+
+
+func _pickup_values() -> void:
+	var battle := await _battle("outer")
+	var golem: Enemy = battle._spawn_enemy_at(battle._golem_pool, Vector3(320, 0, -170))
+	golem.take_damage(golem.max_health)
+	var gold := _visible_pickups(battle, "spirit_stone.tscn")
+	var blue := _visible_pickups(battle, "spirit_crystal.tscn")
+	_expect(gold.size() == 1 and gold[0].amount == 30 and blue.size() == 1 and blue[0].amount == 100, "石傀金色掉落原值，修为灵石合成一颗")
+	if gold.is_empty() or blue.is_empty():
+		return
+	battle._player.global_position = gold[0].global_position
+	gold[0]._physics_process(0.35)
+	_expect(battle._spirit_stones == 30 and battle._xp == 0 and blue[0].visible, "金色灵石只入钱包，蓝色尚未拾取")
+	battle._open_game_menu()
+	battle._retreat_from_battle()
+	_expect(battle._settlement_saved and battle._xp == 0 and not battle._upgrade_menu.visible, "未捡的蓝色灵石不会补发")
+	var body := battle._player.get_node("Body") as MeshInstance3D
+	var bounds := body.transform * body.get_aabb()
+	var shape := battle._player.get_node("CollisionShape3D").shape as CylinderShape3D
+	_expect(absf(bounds.position.y) < 0.01 and is_equal_approx(bounds.size.y, 108.0)
+		and shape.radius == 16.0 and shape.height == 32.0, "角色模型贴地变矮，碰撞体原样")
+
+
+func _visible_pickups(battle: Node, basename: String) -> Array[Node]:
+	return battle.get_node("Pickups").get_children().filter(func(node: Node) -> bool:
+		return node is MagnetPickup and node.visible and node.scene_file_path.ends_with(basename))
 
 
 func _wave() -> void:

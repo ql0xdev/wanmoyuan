@@ -39,6 +39,7 @@ const GOLEM_SCENE := preload("res://scenes/enemies/stone_golem.tscn")
 const BOSS_SCENE := preload("res://scenes/enemies/demon_lord.tscn")
 const ORB_SCENE := preload("res://scenes/enemies/magic_orb.tscn")
 const SWORD_SCENE := preload("res://scenes/skills/flying_sword.tscn")
+const CULTIVATION_STONE_SCENE := preload("res://scenes/pickups/spirit_crystal.tscn")
 const STONE_SCENE := preload("res://scenes/pickups/spirit_stone.tscn")
 const EQUIPMENT_SCENE := preload("res://scenes/pickups/equipment_pickup.tscn")
 const CAVE_SCENE := "res://scenes/ui/cave_menu.tscn"
@@ -51,7 +52,7 @@ const VICTORY_TIME_SCALE := 0.45
 const HIT_STOP_SECONDS := 0.06
 const HIT_STOP_SCALE := 0.05
 const HIT_STOP_COOLDOWN_USEC := 500000
-const KILL_CULTIVATION := 20
+const CULTIVATION_STONE_VALUE := 20
 const TIME_EPSILON := 0.000001
 const SPAWN_MARGIN := 48.0
 
@@ -80,6 +81,7 @@ var _golem_pool: ObjectPool
 var _boss_pool: ObjectPool
 var _orb_pool: ObjectPool
 var _sword_pool: ObjectPool
+var _cultivation_stone_pool: ObjectPool
 var _stone_pool: ObjectPool
 var _equipment_pool: ObjectPool
 var _living_enemies: Array[Enemy] = []
@@ -138,6 +140,7 @@ func _ready() -> void:
 	_boss_pool = ObjectPool.new(BOSS_SCENE, $Enemies, 1, _connect_boss)
 	_orb_pool = ObjectPool.new(ORB_SCENE, $Projectiles, 100, _connect_orb)
 	_sword_pool = ObjectPool.new(SWORD_SCENE, $Projectiles, 100, _connect_sword)
+	_cultivation_stone_pool = ObjectPool.new(CULTIVATION_STONE_SCENE, $Pickups, 200, _connect_cultivation_stone)
 	_stone_pool = ObjectPool.new(STONE_SCENE, $Pickups, 32, _connect_stone)
 	_equipment_pool = ObjectPool.new(EQUIPMENT_SCENE, $Pickups/EquipmentDrops, 12, _connect_equipment)
 	_camera.snap_to(_player.global_position)
@@ -249,6 +252,10 @@ func _connect_orb(orb: MagicOrb) -> void:
 
 func _connect_sword(sword: FlyingSword) -> void:
 	sword.finished.connect(_recycle_sword)
+
+
+func _connect_cultivation_stone(stone: MagnetPickup) -> void:
+	stone.collected.connect(_on_cultivation_stone_collected)
 
 
 func _connect_stone(stone: MagnetPickup) -> void:
@@ -385,10 +392,10 @@ func _on_enemy_died(enemy: Enemy) -> void:
 		_begin_victory()
 		return
 	_damage_batch.record_kill()
-	_xp += enemy.crystal_count * KILL_CULTIVATION
-	if not _upgrade_queued:
-		_upgrade_queued = true
-		_check_level_up.call_deferred()
+	if enemy.crystal_count > 0:
+		# 一只怪最多掉一颗修为灵石；石傀的多颗价值合在同一颗里。
+		var stone := _cultivation_stone_pool.acquire() as MagnetPickup
+		stone.drop(enemy.global_position, _player, enemy.crystal_count * CULTIVATION_STONE_VALUE)
 
 
 func _drop_spirit_stone(enemy: Enemy, secure := false) -> void:
@@ -454,6 +461,17 @@ func _recycle_orb(orb: MagicOrb) -> void:
 
 func _recycle_sword(sword: FlyingSword) -> void:
 	_sword_pool.release(sword)
+
+
+func _on_cultivation_stone_collected(stone: MagnetPickup) -> void:
+	var amount := stone.amount
+	_cultivation_stone_pool.release(stone)
+	if _phase != Phase.BATTLE or not _player.is_alive():
+		return
+	_xp += amount
+	if not _upgrade_queued:
+		_upgrade_queued = true
+		_check_level_up.call_deferred()
 
 
 func _check_level_up() -> void:
