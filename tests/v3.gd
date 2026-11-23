@@ -306,6 +306,11 @@ func _test_retreat(save: Node) -> void:
 	_expect(menu._retreat.text == "撤离并结算" and "不计通关" in menu._hint.text and not menu._exit.visible, "退出战斗前展示确认说明")
 	menu._back.pressed.emit()
 	menu._back.pressed.emit()
+	# V5 中先前击杀石傀的修为会在暂停菜单关闭后补弹；选完再查战斗状态。
+	for i in range(16):
+		if not battle._upgrade_menu.visible:
+			break
+		battle._on_upgrade_chosen(0)
 	_expect(not paused and not battle._result_menu.visible and save.spirit_stones() == 40, "取消可继续战斗，不结算")
 
 	battle._open_game_menu()
