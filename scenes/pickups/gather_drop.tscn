@@ -1,0 +1,31 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scenes/pickups/magnet_pickup.gd" id="1_pickup"]
+[ext_resource type="Mesh" path="res://scenes/world/pickup_mesh.tres" id="2_core"]
+
+[sub_resource type="StandardMaterial3D" id="Material_purple"]
+shading_mode = 0
+albedo_color = Color(0.92, 0.55, 1, 1)
+
+[sub_resource type="TorusMesh" id="Mesh_ring"]
+material = SubResource("Material_purple")
+inner_radius = 23.0
+outer_radius = 31.0
+rings = 24
+ring_segments = 6
+
+[node name="GatherDrop" type="Node3D"]
+script = ExtResource("1_pickup")
+use_crystal_magnet_bonus = false
+
+[node name="Ring" type="MeshInstance3D" parent="."]
+position = Vector3(0, 5, 0)
+cast_shadow = 0
+mesh = SubResource("Mesh_ring")
+
+[node name="Core" type="MeshInstance3D" parent="."]
+position = Vector3(0, 16, 0)
+scale = Vector3(11, 16, 11)
+cast_shadow = 0
+material_override = SubResource("Material_purple")
+mesh = ExtResource("2_core")

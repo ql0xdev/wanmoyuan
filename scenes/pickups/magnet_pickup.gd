@@ -42,5 +42,12 @@ func _physics_process(delta: float) -> void:
 	var progress := _magnet_elapsed / MAGNET_DURATION
 	global_position = _drop_position.lerp(target_position, progress * progress)
 	if global_position.distance_squared_to(target_position) <= PICKUP_RADIUS * PICKUP_RADIUS:
-		_target = null
-		collected.emit(self)
+		collect_now()
+
+
+func collect_now() -> bool:
+	if _target == null:
+		return false
+	_target = null
+	collected.emit(self)
+	return true

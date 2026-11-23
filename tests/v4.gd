@@ -204,10 +204,19 @@ func _test_layer(id: String, stage_demo := false, arrival := "", loot := "") -> 
 		id + " Boss 正式装备掉落：普通两件及渡劫时恰好一件追加")
 	await _capture(loot)
 	var amount: int = {"outer": 200, "middle": 400, "inner": 800, "deep": 1600, "source": 3200}[id]
-	_expect(battle._inventory.new_loot().size() == 2 + expected_bonus and battle._spirit_stones == amount, id + " 正式 Boss 奖励到账，灵石倍率")
-	_expect(battle._run_won and battle._settlement_saved and _save.has_cleared(id), id + " 当帧正式结算")
 	await create_timer(0.57, true, false, true).timeout
-	_expect(battle._phase == battle.Phase.RESULT, id + " 胜利慢镜之后直接显示结果")
+	_expect(battle._phase == battle.Phase.VICTORY_LOOT and not battle._settlement_saved, id + " 胜利慢镜后恢复拾取")
+	for drop: Node3D in drops:
+		battle._player.global_position = drop.global_position
+		drop._physics_process(0.18)
+	for stone: Node in battle.get_node("Pickups").get_children():
+		if stone.scene_file_path.ends_with("spirit_stone.tscn") and stone.visible:
+			battle._player.global_position = stone.global_position
+			stone._physics_process(0.35)
+	_expect(battle._inventory.new_loot().size() == 2 + expected_bonus and battle._spirit_stones == amount, id + " 拾取魔尊奖励，灵石倍率")
+	battle._physics_process(10.0)
+	await process_frame
+	_expect(battle._run_won and battle._settlement_saved and _save.has_cleared(id), id + " 拾取后正式结算")
 	if id in ["deep", "source"]:
 		var regular := await _battle(id)
 		var golem: Node = regular._spawn_enemy(regular._golem_pool)

@@ -17,6 +17,8 @@ const SkillBar = preload("res://scenes/ui/run_skill_bar.gd")
 @onready var _boss_notice: PanelContainer = $BossNotice
 @onready var _wave_notice: Label = $WaveNotice
 @onready var _boss_action: Label = $BossAction
+@onready var _victory_loot_panel: PanelContainer = $VictoryLoot
+@onready var _victory_loot_label: Label = $VictoryLoot/Rows/Seconds
 @onready var _loot_notice: Button = $LootNotice
 
 var _loot_tween: Tween
@@ -26,6 +28,7 @@ var _action_tween: Tween
 var _boss_name := ""
 var _shield := 0
 var _skill_bar: SkillBar
+var _shown_victory_loot_seconds := -1
 var loot_item_id := 0
 
 
@@ -122,6 +125,25 @@ func show_boss_action(action: String) -> void:
 	_action_tween = create_tween()
 	_action_tween.tween_property(_boss_action, "modulate:a", 0.0, 0.24).set_delay(1.15)
 	_action_tween.tween_callback(_boss_action.hide)
+
+
+func show_victory_loot(seconds: int) -> void:
+	_boss_bar.hide()
+	_boss_notice.hide()
+	_boss_action.hide()
+	_wave_notice.hide()
+	menu_button.hide()
+	shop_button.hide()
+	bag_button.hide()
+	_loot_notice.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	set_victory_loot_seconds(seconds)
+	_victory_loot_panel.show()
+
+
+func set_victory_loot_seconds(seconds: int) -> void:
+	if seconds != _shown_victory_loot_seconds:
+		_shown_victory_loot_seconds = seconds
+		_victory_loot_label.text = "安全拾取 · %d 秒" % seconds
 
 
 func show_loot(message: String, color: Color, item_id := 0) -> void:

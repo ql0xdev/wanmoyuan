@@ -400,13 +400,24 @@ func _test_evacuation(save: Node) -> void:
 	battle._drop_equipment(Vector3(1000, 0, 0), WHITE_WEAPON.duplicate())
 	_drop_stones(battle, 500, Vector3(1000, 0, 0))
 	_kill_boss(battle, Vector3(325, 0, 0))
-	_expect(battle._settlement_saved and save.spirit_stones() == 200 and save.equipment_count() == 2,
-		"魔尊当帧结算，远处普通掉落未带回")
+	_expect(not battle._settlement_saved and save.spirit_stones() == 0, "魔尊击杀不提前结算")
 	await create_timer(0.65, true, false, true).timeout
-	_expect(paused and Engine.time_scale == 1.0 and battle._result_menu._title.text == "渡劫成功"
-		and save.has_cleared("outer"), "慢动作后直接展示结果，无离场倒计时")
+	_expect(not paused and Engine.time_scale == 1.0 and battle._phase == battle.Phase.VICTORY_LOOT
+		and battle._hud._victory_loot_label.text == "安全拾取 · 10 秒", "慢动作后开始十秒拾取")
+	var elapsed: float = battle._elapsed
+	var started := Time.get_ticks_msec()
+	battle._player._on_joystick_direction_changed(Vector2.RIGHT)
+	await create_timer(1.75, true, false, true).timeout
+	battle._player._on_joystick_direction_changed(Vector2.ZERO)
+	_expect(battle._player.global_position.x > 295.0 and battle._spirit_stones == 200
+		and battle._inventory.new_loot().size() == 2 and battle._elapsed == elapsed and not save.has_profile(),
+		"走到魔尊死亡处拾取，未提前保存且战斗时间不再增长")
+	while not paused:
+		await physics_frame
+	var seconds := (Time.get_ticks_msec() - started) / 1000.0
+	_expect(seconds >= 8.8 and seconds <= 11.5 and save.has_cleared("outer"), "实际约十秒后胜利结算")
 	_expect(save.spirit_stones() == 200 and save.equipment_count() == 2,
-		"播放结果不重复保存")
+		"只带回捡到的魔尊奖励，远处道具未补发")
 
 
 func _test_storage_overflow(battle: Node, save: Node) -> void:
@@ -549,10 +560,20 @@ func _pick_ground_gear(battle: Node, drop: Node3D) -> void:
 
 
 func _defeat_boss(battle: Node, offset: Vector3) -> void:
+	var at: Vector3 = battle._player.global_position + offset
 	_kill_boss(battle, offset)
 	await create_timer(0.63, true, false, true).timeout
-	_expect(paused and is_equal_approx(Engine.time_scale, 1.0) and battle._result_menu.visible,
-		"胜利慢动作后直接显示结算")
+	_expect(not paused and battle._phase == battle.Phase.VICTORY_LOOT, "胜利慢动作后开始拾取")
+	for drop: Node3D in _ground_gear(battle):
+		if drop.global_position.distance_squared_to(at) < 35.0 * 35.0:
+			_pick_ground_gear(battle, drop)
+	for stone: Node in battle.get_node("Pickups").get_children():
+		if stone.scene_file_path.ends_with("spirit_stone.tscn") and stone.visible and stone.global_position.distance_squared_to(at) < 35.0 * 35.0:
+			battle._player.global_position = stone.global_position
+			stone._physics_process(0.35)
+	battle._physics_process(10.0)
+	await process_frame
+	_expect(paused and battle._result_menu.visible, "十秒结束后显示结果")
 
 
 func _kill_boss(battle: Node, offset: Vector3) -> void:

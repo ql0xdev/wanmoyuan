@@ -49,15 +49,20 @@ func _run() -> void:
 			await _swords()
 			await _all_evolutions()
 			await _time_and_settlement()
+			await _consumables()
 		"legacy":
 			await _legacy(args[2] if args.size() >= 3 else "")
 		"pickup":
 			await _opening_and_cards()
 			await _pickup_values()
+		"patch":
+			await _opening_and_cards()
+			await _time_and_settlement()
+			await _consumables()
 		"stress":
 			await _stress()
 		_:
-			_expect(false, "full | capture <目录> | pickup <目录> | legacy <目录> [V4.1 存档路径] | stress <目录>")
+			_expect(false, "full | capture <目录> | pickup <目录> | patch <目录> | legacy <目录> [V4.1 存档路径] | stress <目录>")
 	if _failures == 0:
 		print("V5.0 PASS: ", mode)
 	await create_timer(0.3, true, false, true).timeout
@@ -144,7 +149,9 @@ func _opening_and_cards() -> void:
 	skills._upgrade_rng.seed = 8040
 	var rare := 0
 	for n in range(1000):
-		for card: Dictionary in skills.roll_choices():
+		var hand: Array = skills.roll_choices()
+		_expect(hand[0].type == "new" and hand[1].type == "skill" and hand[2].type == "stat", "有候选时保留新功法、功法升级和属性各一张")
+		for card: Dictionary in hand:
 			rare += int(card.rarity == "rare")
 			_expect(card.type == "stat" or card.id not in [Skill.WISP, Skill.BELL, Skill.SHIELD], "未领悟永不入池")
 	_expect(rare >= 200 and rare <= 285, "V4.1 每卡 8% 珍稀固定种子抽验")
@@ -153,10 +160,11 @@ func _opening_and_cards() -> void:
 	battle._hud.set_skills(skills.slots())
 	_expect(skills._selected.size() == 8 and skills._levels[Skill.DASH] == 0, "满八格拒绝再学")
 	for n in range(100):
-		_expect(skills.roll_choices().all(func(card: Dictionary) -> bool: return card.type != "new"), "满栏不再给新功法")
+		var hand: Array = skills.roll_choices()
+		_expect(hand[0].type == "skill" and hand[1].type == "skill" and hand[0].id != hand[1].id, "满栏用两个不重复的功法升级位")
 	battle._xp = battle._xp_required
 	battle._show_level_up()
-	await _capture("验收09b-八格已满只抽升级和属性")
+	await _capture("调整01-功法卡优先")
 	battle._upgrade_menu.hide()
 	battle._xp = 0
 	paused = false
@@ -392,12 +400,42 @@ func _time_and_settlement() -> void:
 	var gear: int = _save.equipment_count()
 	var slow_hits := []
 	battle.hit_stop_triggered.connect(func(kills: int): slow_hits.append(kills))
+	var far_stone: MagnetPickup = battle._stone_pool.acquire()
+	far_stone.drop(Vector3(-4100, 0, 0), battle._player, 500)
 	boss.take_damage(boss.max_health)
-	_expect(battle._settlement_saved and _save.spirit_stones() == before + 200 and _save.equipment_count() == gear + 2
-		and _save.has_cleared("outer") and slow_hits.is_empty(), "Boss 当帧结算、奖励不丢、不触发五杀顿帧")
 	await create_timer(0.61, true, false, true).timeout
-	_expect(paused and battle._phase == battle.Phase.RESULT and battle._run_won and Engine.time_scale == 1.0, "胜利过场结束进入结果")
-	await _capture("验收11b-击杀魔尊提前结算")
+	_expect(not paused and battle._phase == battle.Phase.VICTORY_LOOT and battle._victory_loot_left == 10.0
+		and battle._hud._victory_loot_panel.visible and "10 秒" in battle._hud._victory_loot_label.text
+		and not battle._settlement_saved and _save.spirit_stones() == before and slow_hits.is_empty(),
+		"Boss 慢镜后显示十秒安全拾取，不提前结算或触发五杀顿帧")
+	var gold := _visible_pickups(battle, "spirit_stone.tscn")
+	_expect(gold.size() == 2 and not battle.get_node("Enemies").visible
+		and not battle.get_node("Projectiles").visible and not battle._player.accepts_damage
+		and Engine.time_scale == 1.0, "清除威胁并保留掉落，可安全移动")
+	await _capture("调整04-魔尊击杀后十秒安全拾取")
+	var reward: MagnetPickup
+	for stone: MagnetPickup in gold:
+		if stone.amount == 200:
+			reward = stone
+	_expect(reward != null, "魔尊灵石实际落地")
+	for drop: Node3D in battle.get_node("Pickups/EquipmentDrops").get_children():
+		if not drop.visible:
+			continue
+		battle._player.global_position = drop.global_position
+		drop._physics_process(0.18)
+	battle._physics_process(9.9)
+	_expect(not battle._result_menu.visible and "1 秒" in battle._hud._victory_loot_label.text
+		and battle._spirit_stones == 0 and battle._inventory.new_loot().size() == 2, "提前拾取装备，倒计时未到不结算")
+	battle._physics_process(0.11)
+	if reward != null:
+		battle._player.global_position = reward.global_position
+		reward._physics_process(0.35)
+	await process_frame
+	_expect(paused and battle._phase == battle.Phase.RESULT and battle._run_won and battle._settlement_saved
+		and "04:00" in battle._result_menu._stats.text and _save.spirit_stones() == before + 200
+		and _save.equipment_count() == gear + 2 and _save.has_cleared("outer") and far_stone.visible,
+		"收取最后一帧的魔尊灵石，到时结算，远处未捡不补发")
+	await _capture("调整05-拾取结束后结算")
 	battle = await _battle("middle")
 	battle._elapsed = 299.95
 	battle._boss_spawned = true
@@ -407,6 +445,87 @@ func _time_and_settlement() -> void:
 	_expect(battle._result_menu._title.text == "存活结算" and "05:00" in battle._result_menu._stats.text
 		and battle._settlement_saved and not _save.has_cleared("middle"), "300 秒存活结算，不当作击杀 Boss")
 	await _capture("验收11c-满300秒存活结算")
+
+
+func _consumables() -> void:
+	var battle := await _battle("outer")
+	var player: Node3D = battle._player
+	var kind_scenes := ["recovery_drop.tscn", "gather_drop.tscn"]
+	var chances: Array[float] = [battle.RECOVERY_DROP_CHANCE, battle.GATHER_DROP_CHANCE]
+	for i in range(kind_scenes.size()):
+		var found := -1
+		var probe := RandomNumberGenerator.new()
+		for n in range(1000):
+			probe.seed = n
+			var draw := probe.randf()
+			if (draw >= chances[1] and draw < chances[0] + chances[1]) if i == 0 else draw < chances[1]:
+				found = n
+				break
+		_expect(found >= 0, "可由独立随机流抽到道具")
+		battle._consumable_rng.seed = found
+		var wolf: Enemy = battle._spawn_enemy_at(battle._wolf_pool, Vector3(-250 + i * 500, 0, -135))
+		wolf.stone_drop_chance = 0.0
+		wolf.equipment_chance = 0.0
+		wolf.take_damage(wolf.max_health)
+		_expect(_visible_pickups(battle, kind_scenes[i]).size() == 1, "实测击杀令道具落地")
+	var green := _visible_pickups(battle, kind_scenes[0])
+	var purple := _visible_pickups(battle, kind_scenes[1])
+	if green.is_empty() or purple.is_empty():
+		return
+	var heal: MagnetPickup = green[0]
+	var gather: MagnetPickup = purple[0]
+	var gold: MagnetPickup = battle._stone_pool.acquire()
+	gold.drop(Vector3(-5000, 0, 0), player, 37)
+	var blue: MagnetPickup = battle._cultivation_stone_pool.acquire()
+	blue.drop(Vector3(5000, 0, 0), player, 8)
+	battle._drop_equipment(Vector3(1500, 0, 0), V4_ITEM.duplicate(true))
+	battle._xp_required = 100 # 验收图截取结算前的反馈，真正连升由正常阈值测试。
+	player.health = player.max_health - 100
+	battle._hud.set_health(player.health, player.max_health)
+	heal._physics_process(0.35)
+	_expect(player.health == player.max_health - 100 and heal.visible, "没靠近，不触发回血")
+	if not _out.is_empty():
+		await create_timer(0.65).timeout
+	await _capture("调整02-回春露和聚灵符掉在地上")
+	var prior_health: int = player.health
+	player.global_position = heal.global_position
+	heal._physics_process(0.35)
+	_expect(player.health == mini(player.max_health, prior_health + roundi(player.max_health * battle.RECOVERY_FRACTION))
+		and not heal.visible and "气血 +" in battle._hud._loot_notice.text, "回春露拾取即回血，不超过上限")
+	await _capture("调整02b-拾取回春露立即回血")
+	player.global_position = gather.global_position
+	gather._physics_process(0.35)
+	_expect(battle._spirit_stones == 37 and battle._xp == 48 and not gold.visible and not blue.visible and not gather.visible
+		and _visible_pickups(battle, "spirit_crystal.tscn").is_empty() and battle._inventory.new_loot().is_empty(),
+		"聚灵符收尽全图已存在的灵石与灵晶，装备不收、不重复")
+	await _capture("调整03-聚灵符收取两类掉落")
+	await process_frame
+	battle._xp = 0
+	battle._xp_required = 20
+	blue = battle._cultivation_stone_pool.acquire()
+	blue.drop(Vector3(5000, 0, 20), player, 60)
+	gather = battle._gather_pool.acquire()
+	gather.drop(player.global_position, player)
+	gather._physics_process(0.35)
+	await process_frame
+	_expect(battle._upgrade_menu.visible and battle._xp == 60, "全图收取触发正常的升级三选一")
+	battle._on_upgrade_chosen(0)
+	_expect(battle._level == 2 and battle._upgrade_menu.visible, "保留多余修为，连续弹牌")
+	battle._on_upgrade_chosen(0)
+	_expect(battle._level == 3 and battle._xp == 14 and not battle._upgrade_menu.visible and not paused, "多级逐个处理，最后恢复战斗")
+	battle._spawn_boss()
+	var boss: DemonLord = battle._living_enemies.filter(func(enemy: Enemy) -> bool: return enemy is DemonLord)[0]
+	boss.take_damage(boss.max_health)
+	await create_timer(0.58, true, false, true).timeout
+	blue = battle._cultivation_stone_pool.acquire()
+	blue.drop(Vector3(5000, 0, 20), player, 100)
+	gather = battle._gather_pool.acquire()
+	gather.drop(player.global_position, player)
+	gather._physics_process(0.35)
+	await process_frame
+	_expect(battle._phase == battle.Phase.VICTORY_LOOT and battle._spirit_stones == 237 and battle._xp == 114
+		and not battle._upgrade_menu.visible and not paused and battle._inventory.new_loot().is_empty(),
+		"胜利拾取期能用聚灵符收远处魔尊灵石，不收装备，不弹卡打断倒计时")
 
 
 func _legacy(path: String) -> void:

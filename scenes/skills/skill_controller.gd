@@ -92,28 +92,41 @@ func configure(player: Player, enemies: Array[Enemy], launch_sword: Callable, ca
 
 
 func roll_choices() -> Array[Dictionary]:
-	var available: Array[Dictionary] = []
+	var upgrades: Array[Dictionary] = []
+	var discoveries: Array[Dictionary] = []
+	var stats: Array[Dictionary] = []
 	var evolutions: Array[int] = []
 	for skill in _selected:
 		if _levels[skill] < CAP:
-			available.append({"type": "skill", "id": skill})
+			upgrades.append({"type": "skill", "id": skill})
 		elif _can_evolve(skill):
 			evolutions.append(skill)
 	if _selected.size() < Catalog.RUN_SKILL_SLOTS:
 		for id: String in _learned:
 			var skill := Catalog.SKILLS.find(id)
 			if skill >= 0 and not _selected.has(skill) and not _consumed.has(skill):
-				available.append({"type": "new", "id": skill})
+				discoveries.append({"type": "new", "id": skill})
 	for stat: String in Upgrades.STAT_CARDS:
-		available.append({"type": "stat", "id": stat})
+		stats.append({"type": "stat", "id": stat})
 	var result: Array[Dictionary] = []
 	if not evolutions.is_empty():
 		result.append({"type": "evolution", "id": evolutions[_upgrade_rng.randi_range(0, evolutions.size() - 1)], "rarity": "evolution"})
+	# 两个功法位（进化占一个），优先保证能学新功法；第三个留给属性。
+	if not discoveries.is_empty():
+		result.append(_draw_upgrade(discoveries))
+	if result.size() < 2 and not upgrades.is_empty():
+		result.append(_draw_upgrade(upgrades))
+	while result.size() < 2 and (not upgrades.is_empty() or not discoveries.is_empty()):
+		result.append(_draw_upgrade(upgrades if not upgrades.is_empty() else discoveries))
 	while result.size() < 3:
-		var card: Dictionary = available.pop_at(_upgrade_rng.randi_range(0, available.size() - 1))
-		card["rarity"] = "rare" if _upgrade_rng.randi_range(1, 100) <= Upgrades.RARE_PERCENT else "normal"
-		result.append(card)
+		result.append(_draw_upgrade(stats))
 	return result
+
+
+func _draw_upgrade(pool: Array[Dictionary]) -> Dictionary:
+	var card: Dictionary = pool.pop_at(_upgrade_rng.randi_range(0, pool.size() - 1))
+	card["rarity"] = "rare" if _upgrade_rng.randi_range(1, 100) <= Upgrades.RARE_PERCENT else "normal"
+	return card
 
 
 func card_text(card: Dictionary) -> String:
