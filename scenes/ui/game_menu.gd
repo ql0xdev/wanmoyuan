@@ -2,6 +2,7 @@ extends Control
 
 const Look = preload("res://scenes/ui/ui_look.gd")
 const SkillBar = preload("res://scenes/ui/run_skill_bar.gd")
+const Catalog = preload("res://scripts/cultivation_catalog.gd")
 
 signal closed
 signal retreat_requested
@@ -34,7 +35,8 @@ func open(in_battle: bool, skills: Array[Dictionary] = [], recipes := PackedStri
 		if _skill_bar == null:
 			_make_run_summary()
 		_skill_bar.display(skills)
-		_recipes.text = "进化提示 · 主功法 Lv5\n" + ("\n".join(recipes) if not recipes.is_empty() else "当前没有待进化的功法")
+		_recipes.text = "进化提示 · 主功法 Lv%d\n" % Catalog.RUN_SKILL_CAP
+		_recipes.text += "\n".join(recipes) if not recipes.is_empty() else "当前没有待进化的功法"
 	_show_actions()
 	show()
 	_back.grab_focus()

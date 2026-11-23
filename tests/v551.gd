@@ -1,6 +1,7 @@
 extends SceneTree
 
-const Skill = preload("res://scripts/cultivation_catalog.gd").Skill
+const Catalog = preload("res://scripts/cultivation_catalog.gd")
+const Skill = Catalog.Skill
 const Enemy = preload("res://scenes/enemies/enemy.gd")
 const Sword = preload("res://scenes/skills/flying_sword.gd")
 const BATTLE := "res://scenes/main.tscn"
@@ -36,7 +37,7 @@ func _test_aura() -> void:
 	var battle := await _battle()
 	var skills: Node = battle._skills
 	skills._learned.append("sword_storm")
-	skills.apply_upgrade(Skill.SWORD, 4)
+	skills.apply_upgrade(Skill.SWORD, Catalog.RUN_SKILL_CAP - 1)
 	skills.apply_upgrade(Skill.SWORD_STORM)
 	battle._xp = battle._xp_required
 	battle._show_level_up()
@@ -61,7 +62,7 @@ func _test_volley() -> void:
 	var battle := await _battle()
 	var skills: Node = battle._skills
 	skills._learned.append("sword_storm")
-	skills.apply_upgrade(Skill.SWORD, 4)
+	skills.apply_upgrade(Skill.SWORD, Catalog.RUN_SKILL_CAP - 1)
 	skills.apply_upgrade(Skill.SWORD_STORM)
 	skills._apply_evolution(Skill.SWORD)
 	var crows: Array[Enemy] = []

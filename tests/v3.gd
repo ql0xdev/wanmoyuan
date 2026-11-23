@@ -505,9 +505,9 @@ func _test_stress(save: Node) -> void:
 		var position_in_world := Vector2((i % 12 - 5.5) * 65.0, (floori(i / 12.0) - 5.5) * 62.0)
 		var pool: RefCounted = battle._crow_pool if i % 4 == 0 else battle._wolf_pool
 		battle._spawn_enemy_at(pool, position_in_world)
-	_expect(battle._active_enemy_count == 149, "怪满时为 240 秒魔尊预留位置")
+	_expect(battle._active_enemy_count == battle.MAX_ENEMIES - 1, "怪满时为 240 秒魔尊预留位置")
 	battle._spawn_boss()
-	_expect(battle._active_enemy_count == 150 and battle._boss_spawned, "同屏 150 怪与魔尊预留")
+	_expect(battle._active_enemy_count == battle.MAX_ENEMIES and battle._boss_spawned, "同屏上限与魔尊预留")
 	await create_timer(3.0).timeout
 	var start := Time.get_ticks_usec()
 	var frames := 0
@@ -519,10 +519,10 @@ func _test_stress(save: Node) -> void:
 		worst_frame = maxi(worst_frame, now - last)
 		last = now
 		frames += 1
-	print("150 怪 / 内渊：%.1f FPS，最长帧 %.1f ms (%d 帧)" % [
-		frames * 1000000.0 / (Time.get_ticks_usec() - start), worst_frame / 1000.0, frames,
+	print("%d 怪 / 内渊：%.1f FPS，最长帧 %.1f ms (%d 帧)" % [
+		battle.MAX_ENEMIES, frames * 1000000.0 / (Time.get_ticks_usec() - start), worst_frame / 1000.0, frames,
 	])
-	_expect(battle._active_enemy_count == 150 and battle._player.is_alive(), "固定负载全程稳定在 150 怪")
+	_expect(battle._active_enemy_count == battle.MAX_ENEMIES and battle._player.is_alive(), "固定负载全程保持上限")
 
 
 func _enter_abyss(id: String) -> void:

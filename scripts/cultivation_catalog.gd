@@ -15,31 +15,31 @@ const ABYSSES := {
 	"outer": {"name": "外渊", "realm": "qi_refining", "health": 1.0, "damage": 1.0, "density": 1.0,
 		"boss": "魔尊·外相", "boss_health": 800, "boss_period": 1.0, "duration": RUN_SECONDS,
 		"tier": 0, "stones": 1, "color": Color.WHITE, "scale": 1.0,
-		"wave_count": 23, "wave_golems": 0, "golem_at": 120, "crow_percent": 20},
+		"wave_count": 28, "wave_golems": 0, "golem_at": 120, "crow_percent": 20},
 	"middle": {"name": "中渊", "realm": "foundation", "health": 2.5, "damage": 2.0, "density": 1.2,
 		"boss": "魔尊·筑基相", "boss_health": 2400, "boss_period": 1.0, "duration": RUN_SECONDS,
 		"tier": 1, "stones": 2, "color": Color("#5999e0"), "scale": 1.10,
-		"wave_count": 27, "wave_golems": 0, "golem_at": 90, "crow_percent": 30},
+		"wave_count": 32, "wave_golems": 0, "golem_at": 90, "crow_percent": 30},
 	"inner": {"name": "内渊", "realm": "gold_core", "health": 6.0, "damage": 4.0, "density": 1.5,
 		"boss": "魔尊·金丹相", "boss_health": 6400, "boss_period": 0.65, "duration": RUN_SECONDS,
 		"tier": 2, "stones": 4, "color": Color("#cd78dd"), "scale": 1.22,
-		"wave_count": 30, "wave_golems": 0, "golem_at": 60, "crow_percent": 40},
+		"wave_count": 36, "wave_golems": 0, "golem_at": 60, "crow_percent": 40},
 	"deep": {"name": "渊底·幽域", "realm": "nascent_soul", "health": 15.0, "damage": 8.0, "density": 1.8,
 		"boss": "魔尊·地相", "boss_health": 15000, "boss_period": 1.0, "duration": RUN_SECONDS,
 		"tier": 3, "stones": 8, "color": Color("#4f286d"), "scale": 1.10,
-		"wave_count": 33, "wave_golems": 1, "golem_at": 45, "crow_percent": 45},
+		"wave_count": 40, "wave_golems": 1, "golem_at": 45, "crow_percent": 45},
 	"source": {"name": "渊底·魔源", "realm": "spirit_transformation", "health": 40.0, "damage": 16.0, "density": 2.2,
 		"boss": "魔尊·天相", "boss_health": 32000, "boss_period": 1.0, "duration": RUN_SECONDS,
 		"tier": 4, "stones": 16, "color": Color("#460d1b"), "scale": 1.20,
-		"wave_count": 38, "wave_golems": 2, "golem_at": 30, "crow_percent": 50,
+		"wave_count": 46, "wave_golems": 2, "golem_at": 30, "crow_percent": 50,
 		"bonus_drop": {"realm": "tribulation", "tier": 5}},
 }
 const DEFAULT_ABYSS := "outer"
 enum Skill { SWORD, LIGHTNING, ORBS, ICE, HEAL, SWORD_STORM, FIRE, BLINK, DASH, WISP, BELL, SHIELD }
 const SKILLS := ["sword", "lightning", "orbs", "ice", "heal", "sword_storm", "fire", "blink", "dash", "wisp", "bell", "shield"]
 const STARTER_SKILLS := ["sword", "lightning", "orbs", "ice", "heal"]
-const RUN_SKILL_SLOTS := 8
-const RUN_SKILL_CAP := 5
+const RUN_SKILL_SLOTS := 6
+const RUN_SKILL_CAP := 3
 const SKILL_DATA := {
 	"sword": {"name": "御剑术", "cost": 0, "attack": true, "detail": "飞剑自动追击最近的敌人"},
 	"lightning": {"name": "雷诀", "cost": 0, "attack": true, "detail": "向随机敌人落下范围雷击"},
@@ -50,13 +50,13 @@ const SKILL_DATA := {
 	"fire": {"name": "离火印", "cost": 2, "attack": true, "detail": "每 4 秒在敌人脚下生火，灼烧圈内敌人 3 秒"},
 	"blink": {"name": "缩地成寸", "cost": 1, "attack": false, "detail": "受击时有 10% 概率瞬移 300 像素"},
 	"dash": {"name": "神行剑影", "cost": 1, "attack": true, "detail": "每 3 秒沿移动方向突进斩击",
-		"interval": 3.0, "damage": [20, 30, 45, 55, 65], "distance": 215.0, "duration": 0.23, "radius": 26.0},
+		"interval": 3.0, "damage": [20, 45, 65], "distance": 215.0, "duration": 0.23, "radius": 26.0},
 	"wisp": {"name": "幽冥鬼火", "cost": 2, "attack": true, "detail": "追随角色的鬼火持续灼烧圈内敌人",
-		"damage": 18, "count": [1, 2, 3, 4, 5], "radius": 118.0},
+		"damage": 18, "count": [1, 3, 5], "radius": 118.0},
 	"bell": {"name": "摄魂铃", "cost": 2, "attack": true, "detail": "每 6 秒震荡，减速并伤害范围内敌人",
-		"interval": 6.0, "damage": [15, 25, 40, 50, 60], "radius": 300.0, "slow": 0.40, "duration": 2.0},
+		"interval": 6.0, "damage": [15, 40, 60], "radius": 300.0, "slow": 0.40, "duration": 2.0},
 	"shield": {"name": "玄龟护印", "cost": 2, "attack": false, "detail": "每 20 秒生成护盾，持续 5 秒",
-		"interval": 20.0, "absorb": [30, 50, 80, 100, 120], "duration": 5.0},
+		"interval": 20.0, "absorb": [30, 80, 120], "duration": 5.0},
 }
 const EVOLUTIONS := {
 	"sword": {"name": "万剑归宗", "partner": "sword_storm",

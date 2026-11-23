@@ -171,15 +171,15 @@ func _power() -> void:
 	var skills: Node = battle._skills
 	var pool: RefCounted = battle._wolf_pool
 	_enemy(battle, pool, Vector2(195, -350))
-	skills.apply_upgrade(Skill.SWORD, 4)
-	skills._cast_swords(5)
+	skills.apply_upgrade(Skill.SWORD, Cultivation.RUN_SKILL_CAP - 1)
+	skills._cast_swords(Cultivation.RUN_SKILL_CAP)
 	var projectiles := battle.get_node("Projectiles").get_children().filter(
 		func(item: Node2D) -> bool: return item.visible and item.scene_file_path.ends_with("flying_sword.tscn"))
-	_expect(projectiles.size() == 8, "御剑术 Lv5 仍发射八剑")
+	_expect(projectiles.size() == 8, "御剑术 Lv3 仍发射八剑")
 	for sword: Node2D in projectiles:
 		sword.set_physics_process(false)
 		sword.global_position += sword._direction * 245.0
-	await _shot("验收06a-柳叶飞剑和短拖尾", "御剑术 Lv5 · 柳叶剑与拖尾")
+	await _shot("验收06a-柳叶飞剑和短拖尾", "御剑术 Lv3 · 柳叶剑与拖尾")
 	for sword: Node2D in projectiles:
 		battle._recycle_sword(sword)
 		sword.set_physics_process(true)
@@ -207,7 +207,7 @@ func _power() -> void:
 	await _shot("验收06c-万剑归宗十二把环绕飞剑", "万剑归宗 · 12 把")
 	battle._open_game_menu()
 	await create_timer(0.36, true, false, true).timeout
-	_expect(battle._game_menu._skill_bar._slots.size() == 8 and battle._game_menu._recipes.visible, "暂停仍有八格和进化提示")
+	_expect(battle._game_menu._skill_bar._slots.size() == 6 and battle._game_menu._recipes.visible, "暂停六格和进化提示")
 	await _shot("验收11b-暂停功法栏和进化提示", "")
 	battle._game_menu._back_pressed()
 

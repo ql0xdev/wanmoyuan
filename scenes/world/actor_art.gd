@@ -3,6 +3,8 @@ extends Node2D
 const Ink = preload("res://scenes/world/ink.gd")
 enum Kind { PLAYER, WOLF, CROW, GOLEM, BOSS }
 
+static var _mob_textures := {}
+
 @export var kind := Kind.WOLF
 var radius := 16.0
 @export var tint := Color("#ee6b6d")
@@ -14,6 +16,12 @@ var boss_stage := 1
 
 
 func _draw() -> void:
+	if kind in [Kind.WOLF, Kind.CROW, Kind.GOLEM]:
+		var texture := _mob_texture()
+		if texture != null:
+			var extent := Vector2.ONE * radius * 1.6
+			draw_texture_rect(texture, Rect2(-extent, extent * 2.0), false)
+			return
 	var rim := Color.WHITE if hit_white else tint.lightened(0.46)
 	var fill := Color("#e8fcff") if hit_white else tint
 	var r := radius
@@ -46,6 +54,41 @@ func _draw() -> void:
 		draw_polyline(PackedVector2Array([Vector2(-q, -q * 0.25), Vector2(-q * 0.50, -q * 0.37), Vector2(-q * 0.17, 0), Vector2(0, q)]), rim, 1.5, true)
 	else:
 		_draw_boss(r, fill, rim)
+
+
+func _mob_texture() -> Texture2D:
+	var key := "%d-%s-%s" % [kind, tint.to_html(false), hit_white]
+	if _mob_textures.has(key):
+		return _mob_textures[key]
+	# 同种同品质色的怪共享同一张程序生成的贴图，保留各自的 Y 排序、旋转和闪白。
+	var fill := Color("#e8fcff") if hit_white else tint
+	var rim := Color.WHITE if hit_white else tint.lightened(0.46)
+	var fill_color := "#" + fill.darkened(0.22).to_html(false)
+	var rim_color := "#" + rim.to_html(false)
+	var shadow := '<circle cx="0" cy=".18" r="1.12" fill="#090c12" opacity=".67"/>'
+	var shape := ""
+	match kind:
+		Kind.WOLF:
+			shape = ('<circle r=".95" fill="%s" stroke="%s" stroke-width=".11"/>'
+				+ '<circle r="1.05" fill="none" stroke="%s" stroke-width=".14" opacity=".21"/>'
+				+ '<circle cx=".31" cy="-.34" r=".155" fill="#fff0d3"/>'
+				+ '<circle cx=".31" cy=".34" r=".155" fill="#fff0d3"/>') % [fill_color, rim_color, rim_color]
+		Kind.CROW:
+			shape = ('<path d="M 1.22 0 L -.33 1.46 L -.11 .42 L -.8 0 L -.11 -.42 L -.33 -1.46 Z" fill="%s" stroke="%s" stroke-width=".09" stroke-linejoin="round"/>'
+				+ '<path d="M .32 -.22 L .54 0 L .32 .22 L .10 0 Z" fill="#ffe0ff"/>') % [fill_color, rim_color]
+		Kind.GOLEM:
+			shape = ('<path d="M -.87 -.64 L -.64 -.87 L .87 -.87 L .87 .64 L .64 .87 L -.87 .87 Z" fill="%s" stroke="%s" stroke-width=".07" stroke-linejoin="round"/>'
+				+ '<path d="M 0 -.46 L .39 0 L 0 .46 L -.39 0 Z" fill="%s" fill-opacity=".55" stroke="%s" stroke-width=".045"/>'
+				+ '<path d="M -.87 -.23 L -.47 -.33 L -.17 0 L 0 .87" fill="none" stroke="%s" stroke-width=".045"/>') % [
+					fill_color, rim_color, "#" + fill.to_html(false), rim_color, rim_color]
+	var image := Image.new()
+	var svg := '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="-1.6 -1.6 3.2 3.2">%s%s</svg>' % [shadow, shape]
+	if image.load_svg_from_string(svg) != OK:
+		_mob_textures[key] = null
+		return null
+	var texture := ImageTexture.create_from_image(image)
+	_mob_textures[key] = texture
+	return texture
 
 
 func _draw_boss(r: float, fill: Color, rim: Color) -> void:

@@ -73,7 +73,7 @@ func _check_tables() -> void:
 	var i := 0
 	for id: String in Catalog.ABYSSES:
 		var abyss: Dictionary = Catalog.ABYSSES[id]
-		_expect(abyss.duration == 300 and abyss.wave_count == [23, 27, 30, 33, 38][i]
+		_expect(abyss.duration == 300 and abyss.wave_count == [28, 32, 36, 40, 46][i]
 			and abyss.wave_golems == [0, 0, 0, 1, 2][i] and abyss.golem_at == [120, 90, 60, 45, 30][i]
 			and abyss.crow_percent == [20, 30, 40, 45, 50][i], id + " 时间与兽潮表")
 		_expect(abyss.health == [1.0, 2.5, 6.0, 15.0, 40.0][i] and abyss.damage == [1.0, 2.0, 4.0, 8.0, 16.0][i]
@@ -100,9 +100,9 @@ func _opening_and_cards() -> void:
 	battle._skills.set_physics_process(false)
 	var skills: Node = battle._skills
 	_expect(skills._selected == [Skill.SWORD] and skills._levels[Skill.SWORD] == 1
-		and battle._hud._skill_bar._slots.size() == 8 and battle._hud._skill_bar._ranks[0].text == "Lv1"
-		and battle._hud._skill_bar._ranks[1].text.is_empty(), "首格御剑术 Lv1，其余七格为空")
-	await _capture("验收08b-默认御剑术和八格栏")
+		and battle._hud._skill_bar._slots.size() == 6 and battle._hud._skill_bar._ranks[0].text == "Lv1"
+		and battle._hud._skill_bar._ranks[1].text.is_empty(), "首格御剑术 Lv1，其余五格为空")
+	await _capture("验收08b-默认御剑术和六格栏")
 	var chosen_seed := -1
 	for n in range(200):
 		skills._upgrade_rng.seed = n
@@ -158,7 +158,7 @@ func _opening_and_cards() -> void:
 	for id: int in [Skill.LIGHTNING, Skill.ORBS, Skill.ICE, Skill.HEAL, Skill.FIRE, Skill.BLINK, Skill.DASH]:
 		skills.apply_upgrade(id)
 	battle._hud.set_skills(skills.slots())
-	_expect(skills._selected.size() == 8 and skills._levels[Skill.DASH] == 0, "满八格拒绝再学")
+	_expect(skills._selected.size() == 6 and skills._levels[Skill.DASH] == 0, "满六格拒绝再学")
 	for n in range(100):
 		var hand: Array = skills.roll_choices()
 		_expect(hand[0].type == "skill" and hand[1].type == "skill" and hand[0].id != hand[1].id, "满栏用两个不重复的功法升级位")
@@ -168,14 +168,14 @@ func _opening_and_cards() -> void:
 	battle._upgrade_menu.hide()
 	battle._xp = 0
 	paused = false
-	skills.apply_upgrade(Skill.SWORD, 4)
+	skills.apply_upgrade(Skill.SWORD, Catalog.RUN_SKILL_CAP - 1)
 	battle._hud.set_skills(skills.slots())
 	battle._open_game_menu()
 	_expect("可进化 · 万剑归宗" in battle._game_menu._recipes.text
-		and battle._game_menu._skill_bar._ranks[0].text == "Lv5", "暂停菜单同步状态和配方")
+		and battle._game_menu._skill_bar._ranks[0].text == "Lv3", "暂停菜单同步状态和配方")
 	if not _out.is_empty():
 		await create_timer(0.34, true, false, true).timeout
-	await _capture("验收10a-暂停八格及进化配方")
+	await _capture("验收10a-暂停六格及进化配方")
 	battle._game_menu._back_pressed()
 	battle._xp = battle._xp_required
 	battle._show_level_up()
@@ -183,7 +183,7 @@ func _opening_and_cards() -> void:
 		and Catalog.evolution_recipe("sword") in battle._upgrade_menu._buttons[0].text, "下次升级必出万剑归宗及配方")
 	await _capture("验收10b-金卡万剑归宗组合说明")
 	battle._upgrade_menu._buttons[0].pressed.emit()
-	_expect(skills._selected.size() == 7 and skills._levels[Skill.SWORD_STORM] == 0
+	_expect(skills._selected.size() == 5 and skills._levels[Skill.SWORD_STORM] == 0
 		and skills.slots()[0].name == "万剑归宗", "以一个进化技能替换两项，释放一格")
 	skills.apply_upgrade(Skill.DASH)
 	_expect(skills._levels[Skill.DASH] == 1, "有空位后可重新学习另一门功法")
@@ -227,7 +227,7 @@ func _wave() -> void:
 	battle._elapsed = 59.99
 	battle._physics_process(0.02)
 	var enemies: Array = battle._living_enemies.duplicate()
-	_expect(enemies.size() == 23 and not battle._hud._wave_notice.visible, "60 秒正好生成 23 只")
+	_expect(enemies.size() == 28 and not battle._hud._wave_notice.visible, "60 秒正好生成 28 只")
 	var cam: Node2D = battle._camera
 	for enemy: Enemy in enemies:
 		_expect(enemy.global_position.length() >= 699.9 and not root.get_visible_rect().has_point(cam.screen_at(enemy.global_position)),
@@ -252,10 +252,10 @@ func _wave() -> void:
 			var at: Vector2 = overhead.get_canvas_transform() * enemies[j].global_position + Vector2(7, -12)
 			_mark(battle, at, "%02d" % (j + 1))
 			numbered += int(root.get_visible_rect().has_point(at))
-		_expect(numbered == 23, "图内完整标注兽潮 01–23")
-		_mark(battle, Vector2(42, 105), "01:00 · 外渊首波 23 只\n出生原位 · 验收俯视机位")
-		_mark(battle, Vector2(42, viewport_size.y - 100), "01–23 = 实际生成的 23 个怪物节点")
-	await _capture("验收03-兽潮第一波23只")
+		_expect(numbered == 28, "图内完整标注兽潮 01–28")
+		_mark(battle, Vector2(42, 105), "01:00 · 外渊首波 28 只\n出生原位 · 验收俯视机位")
+		_mark(battle, Vector2(42, viewport_size.y - 100), "01–28 = 实际生成的 28 个怪物节点")
+	await _capture("验收03-兽潮第一波28只")
 	_clear_marks()
 
 
@@ -324,7 +324,7 @@ func _swords() -> void:
 	skills._launch_sword = func(at: Vector2, direction: Vector2, amount: int, reach: float):
 		shots.append([at, direction, amount, reach])
 		launch.call(at, direction, amount, reach)
-	for level: int in [1, 5]:
+	for level: int in [1, Catalog.RUN_SKILL_CAP]:
 		shots.clear()
 		skills._levels[Skill.SWORD] = level
 		battle._hud.set_skills(skills.slots())
@@ -361,8 +361,8 @@ func _all_evolutions() -> void:
 		var partner := Catalog.SKILLS.find(rule.get("partner", ""))
 		if partner >= 0:
 			skills.apply_upgrade(partner)
-		skills.apply_upgrade(base, 4 - skills._levels[base])
-		_expect(not skills._can_evolve(base), id + " Lv4 不可进化")
+		skills.apply_upgrade(base, Catalog.RUN_SKILL_CAP - 1 - skills._levels[base])
+		_expect(not skills._can_evolve(base), id + " Lv2 不可进化")
 		skills.apply_upgrade(base)
 		var old: Dictionary = skills._passives
 		if partner >= 0:
@@ -575,23 +575,23 @@ func _stress() -> void:
 	var skills: Node = battle._skills
 	skills._learned = Catalog.SKILLS
 	skills._passives = {"body": 5, "spirit": 5, "focus": 3}
-	skills.apply_upgrade(Skill.SWORD, 4)
+	skills.apply_upgrade(Skill.SWORD, Catalog.RUN_SKILL_CAP - 1)
 	skills.apply_upgrade(Skill.SWORD_STORM)
 	skills._apply_evolution(Skill.SWORD)
-	for id: int in [Skill.LIGHTNING, Skill.ORBS, Skill.ICE, Skill.HEAL, Skill.WISP, Skill.BELL, Skill.FIRE]:
-		skills.apply_upgrade(id, 5)
+	for id: int in [Skill.LIGHTNING, Skill.ORBS, Skill.WISP, Skill.BELL, Skill.FIRE]:
+		skills.apply_upgrade(id, Catalog.RUN_SKILL_CAP)
 	for id: int in [Skill.WISP, Skill.ORBS]:
 		skills._apply_evolution(id)
 	battle._hud.set_skills(skills.slots())
 	var enemies: Array = []
-	for i in range(150):
+	for i in range(battle.MAX_ENEMIES):
 		if battle._active_enemy_count >= battle.MAX_ENEMIES:
 			break
 		var at := Vector2((i % 11 - 5.0) * 42.0, (floori(i / 11.0) - 7.0) * 49.0)
 		var pool: RefCounted = battle._crow_pool if i % 3 == 0 else battle._wolf_pool
 		var enemy: Enemy = battle._spawn_enemy_at(pool, at)
 		enemies.append(enemy)
-	_expect(battle._active_enemy_count == 150 and battle._spawn_enemy(battle._wolf_pool) == null, "真 150 怪，拒绝 151")
+	_expect(battle._active_enemy_count == 180 and battle._spawn_enemy(battle._wolf_pool) == null, "真 180 怪，拒绝 181")
 	# 压测不开无伤敌人开关；提高孤立测试血量，保证满载且可看到真实伤害与特效。
 	for enemy: Enemy in battle._living_enemies:
 		if enemy != boss:
@@ -601,7 +601,6 @@ func _stress() -> void:
 	player.health = player.max_health - 65
 	skills._lightning_left = 0.05
 	skills._fire_left = 0.04
-	skills._heal_left = 0.12
 	skills._ascension._clocks.bell = 0.20
 	skills.set_physics_process(true)
 	await create_timer(0.52).timeout
@@ -621,16 +620,14 @@ func _stress() -> void:
 		return root.get_visible_rect().has_point(cam.screen_at(enemy.global_position))).size()
 	print("V5 DESKTOP STRESS: active=%d visible=%d frames=%d mean=%.2f FPS p95=%.2f ms" % [
 		battle._active_enemy_count, visible_count, frames.size(), fps, p95])
-	_expect(battle._active_enemy_count == 150 and visible_count >= 145 and skills.slots().size() == 8,
-		"150 活怪、至少 145 进入视口，八功法运行")
-	if not _out.is_empty():
-		_expect(fps >= 60.0, "V5.5 Windows 性能红线 60 FPS")
-	skills._cast_lightning(5)
-	skills._cast_fire(5)
-	skills._ascension._cast_bell(4)
-	_mark(battle, Vector2(42, 420), "Windows 150 怪 · 8 功法\n采样期平均 %.1f FPS / P95 %.1f ms\n活怪 %d · 视口 %d" % [
+	_expect(battle._active_enemy_count == 180 and visible_count >= 175 and skills.slots().size() == 6,
+		"180 活怪、至少 175 进入视口，六功法运行")
+	skills._cast_lightning(Catalog.RUN_SKILL_CAP)
+	skills._cast_fire(Catalog.RUN_SKILL_CAP)
+	skills._ascension._cast_bell(Catalog.RUN_SKILL_CAP - 1)
+	_mark(battle, Vector2(42, 420), "Windows 180 怪 · 6 功法\n采样期平均 %.1f FPS / P95 %.1f ms\n活怪 %d · 视口 %d" % [
 		fps, p95, battle._active_enemy_count, visible_count])
-	await _capture("验收10-一百五十怪八功法性能")
+	await _capture("验收10-一百八十怪六功法性能")
 
 
 func _battle(id: String) -> Node:

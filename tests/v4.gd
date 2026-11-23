@@ -86,7 +86,7 @@ func _test_spawn_rules() -> void:
 		spawns.advance(56.99, 57, center, warnings, deny, batch)
 		_expect(state.warnings == 1 and ring.is_empty(), id + " 57 秒预警且尚未刷新")
 		spawns.advance(59.99, 60, center, warnings, deny, batch)
-		var count: int = [23, 27, 30, 34, 40][index]
+		var count: int = [28, 32, 36, 41, 48][index]
 		_expect(ring.size() == 2 and spawns._waves.size() == count - 2, id + " 满员时超出的兽潮排队")
 		state.slots = 100
 		spawns.advance(60, 60.1, Vector2.ZERO, warnings, deny, batch)
@@ -233,7 +233,7 @@ func _show_wave(battle: Node) -> void:
 	battle._elapsed = 59.99
 	var previous: int = battle._living_enemies.size()
 	battle._physics_process(0.02)
-	_expect(battle._living_enemies.size() == previous + 23 and not battle._hud._wave_notice.visible, "60 秒在实战生成 23 只并结束预警")
+	_expect(battle._living_enemies.size() == previous + 28 and not battle._hud._wave_notice.visible, "60 秒在实战生成 28 只并结束预警")
 	if not _output.is_empty():
 		# 让实际怪物 AI 从 700 圆环走向镜头内，不重摆兽潮位置。
 		battle._elapsed = 63.6
@@ -279,8 +279,8 @@ func _test_boss_stages(battle: Node, boss: DemonLord) -> void:
 	boss.take_damage(200)
 	var flames: int = events.flames
 	boss._update_attack(0.01)
-	_expect(boss.stage == 4 and events.flames == flames + 5 and is_equal_approx(boss._barrage_left, 8.0)
-		and is_equal_approx(boss._contact_interval(), 1.0 / pow(1.15, 3)), "25% 追加五发扇形池化弹幕，每阶段原始攻击更快")
+	_expect(boss.stage == 4 and events.flames == flames + DemonLord.BARRAGE_COUNT and is_equal_approx(boss._barrage_left, 8.0)
+		and is_equal_approx(boss._contact_interval(), 1.0 / pow(1.15, 3)), "25% 追加七发扇形池化弹幕，每阶段原始攻击更快")
 	if not _output.is_empty():
 		await create_timer(0.52).timeout
 	await _capture("06-四阶段弹幕")
@@ -293,7 +293,7 @@ func _test_loadout_hints(matched := "15-暂停进化提示", missing := "") -> v
 		_expect(_save.train_passive("focus") == OK, "正式凝神诀，加点 " + str(i + 1))
 	var battle := await _battle("outer", ["sword", "sword_storm", "wisp"])
 	var skills: Node = battle._skills
-	skills.apply_upgrade(Skill.SWORD, 4)
+	skills.apply_upgrade(Skill.SWORD, Catalog.RUN_SKILL_CAP - 1)
 	battle._open_game_menu()
 	_expect("可进化 · 万剑归宗 ← 御剑术·满 + 万剑诀" in battle._game_menu._recipes.text
 		and "九幽焚天 ← 幽冥鬼火·满 + 凝神诀·满" in battle._game_menu._recipes.text, "新暂停界面说明技能搭档及满级心法")
@@ -329,10 +329,9 @@ func _test_evolutions() -> void:
 		skills._passives.clear()
 		var base: int = Catalog.SKILLS.find(id)
 		var gold := {"type": "evolution", "id": base, "rarity": "evolution"}
-		while skills._levels[base] < 4:
-			skills.apply_upgrade(base)
+		skills.apply_upgrade(base, Catalog.RUN_SKILL_CAP - 1 - skills._levels[base])
 		skills._passives = valid_passives.duplicate()
-		_expect(gold not in skills.roll_choices(), id + " 四级不能进化")
+		_expect(gold not in skills.roll_choices(), id + " 二级不能进化")
 		skills.apply_upgrade(base)
 		skills._passives.clear()
 		var partner := Catalog.SKILLS.find(rule.get("partner", ""))
@@ -412,24 +411,24 @@ func _test_effect(battle: Node, id: String) -> void:
 			v4._cast_dash(2)
 			v4.on_dash_step(origin, origin + Vector2.RIGHT * 80)
 			player.take_damage(20)
-			_expect(wolf._health == 865 and player.health == 100 and v4._clocks.dash == 1.5, "瞬影三倍伤害、1.5 秒、途中无敌")
+			_expect(wolf._health == 805 and player.health == 100 and v4._clocks.dash == 1.5, "瞬影三倍伤害、1.5 秒、途中无敌")
 		"wisp":
-			v4._update_wisps(0.0, 5)
+			v4._update_wisps(0.0, Catalog.RUN_SKILL_CAP)
 			_expect(skills._visuals._wisps.size() == 15, "满级九幽鬼火十五团")
 			await _capture("19-效果-九幽焚天")
-			v4._update_wisps(0.5, 5)
+			v4._update_wisps(0.5, Catalog.RUN_SKILL_CAP)
 			_expect(wolf._health == 982, "九幽原爆伤 30 的 60% 每半秒")
 		"bell":
 			v4._cast_bell(2)
 			_expect(wolf._slow_factor == 0.4 and wolf._slow_left == 3.0 and v4._bell_left == 3.0, "万魂减速与领域")
 			v4._update_bell(3.0)
-			_expect(wolf._health == 888, "万魂结算基础 40 加六跳 12")
+			_expect(wolf._health == 868, "万魂结算基础 60 加六跳 12")
 		"shield":
 			player.health = 50
 			v4._cast_shield(2)
 			player.take_damage(40)
 			player._update_shield(1.0)
-			_expect(player.shield == 200 and player.health == 53, "玄武降世 240 护盾吸收 40，持盾一秒回复 3%")
+			_expect(player.shield == 320 and player.health == 53, "玄武降世 360 护盾吸收 40，持盾一秒回复 3%")
 
 
 func _test_base_skills() -> void:

@@ -16,12 +16,14 @@ const Skill = Catalog.Skill
 signal swords_cast
 signal lightning_cast
 
-const SWORD_DAMAGE := [10, 15, 20, 25, 30]
-const LIGHTNING_DAMAGE := [15, 22, 30, 38, 46]
-const ORB_DAMAGE := [8, 12, 16, 20, 24]
-const ICE_SLOW_PERCENT := [30, 40, 50, 55, 60]
-const HEAL_INTERVAL := [5.0, 4.0, 3.0, 2.8, 2.5]
-const HEAL_AMOUNT := [3, 5, 8, 10, 12]
+# 新 Lv1 / Lv2 / Lv3 分别沿用原 Lv1 / Lv3 / Lv5 的强度。
+const SWORD_DAMAGE := [10, 20, 30]
+const LIGHTNING_DAMAGE := [15, 30, 46]
+const ORB_DAMAGE := [8, 16, 24]
+const ICE_SLOW_PERCENT := [30, 50, 60]
+const HEAL_INTERVAL := [5.0, 3.0, 2.5]
+const HEAL_AMOUNT := [3, 8, 12]
+const CAST_BASE := [1, 3, 5]
 const CAP := Catalog.RUN_SKILL_CAP
 
 const SWORD_INTERVAL := 1.0
@@ -34,13 +36,13 @@ const ORB_RADIUS := 11.0
 const ICE_RADIUS := 200.0
 const STORM_INTERVAL := 5.0
 const STORM_SWORDS := 8
-const STORM_DAMAGE := [15, 22, 30, 38, 46]
+const STORM_DAMAGE := [15, 30, 46]
 const FIRE_INTERVAL := 4.0
 const FIRE_RADIUS := 92.0
 const FIRE_DURATION := 3
-const FIRE_DAMAGE := [12, 17, 23, 29, 35]
+const FIRE_DAMAGE := [12, 23, 35]
 const BLINK_DISTANCE := 300.0
-const BLINK_CHANCE_PERCENT := [10, 15, 20, 25, 30]
+const BLINK_CHANCE_PERCENT := [10, 20, 30]
 
 @onready var _visuals: SkillVisuals = $Visuals
 
@@ -146,11 +148,11 @@ func card_text(card: Dictionary) -> String:
 	var effect := ""
 	match skill:
 		Skill.SWORD:
-			effect = "每秒 %d 把飞剑\n每剑 %d 伤害" % [Catalog.cast_count(next_level, next_level), SWORD_DAMAGE[tier]]
+			effect = "每秒 %d 把飞剑\n每剑 %d 伤害" % [Catalog.cast_count(CAST_BASE[tier], next_level), SWORD_DAMAGE[tier]]
 		Skill.LIGHTNING:
-			effect = "每 3 秒 %d 道雷\n每道 %d 范围伤害" % [Catalog.cast_count(next_level, next_level), LIGHTNING_DAMAGE[tier]]
+			effect = "每 3 秒 %d 道雷\n每道 %d 范围伤害" % [Catalog.cast_count(CAST_BASE[tier], next_level), LIGHTNING_DAMAGE[tier]]
 		Skill.ORBS:
-			effect = "%d 颗环绕火珠\n每 0.5 秒伤害 %d" % [Catalog.cast_count(next_level + 2, next_level), roundi(ORB_DAMAGE[tier] * Aura.POWER)]
+			effect = "%d 颗环绕火珠\n每 0.5 秒伤害 %d" % [Catalog.cast_count(CAST_BASE[tier] + 2, next_level), roundi(ORB_DAMAGE[tier] * Aura.POWER)]
 		Skill.ICE:
 			effect = "范围 %d 像素\n敌人减速 %d%%" % [int(ICE_RADIUS * reach), ICE_SLOW_PERCENT[tier]]
 		Skill.HEAL:
@@ -323,7 +325,7 @@ func _cast_swords(level: int) -> void:
 			nearest_distance = distance
 	var target := nearest.global_position
 	var direction := origin.direction_to(target)
-	var count := Catalog.cast_count(level, level)
+	var count := Catalog.cast_count(CAST_BASE[level - 1], level)
 	var damage := _player.stats.damage(SWORD_DAMAGE[level - 1])
 	# 多把剑错开出剑位置，但仍瞄准同一个最近的敌人。
 	for i in range(count):
@@ -371,7 +373,7 @@ func _cast_lightning(level: int) -> void:
 	var reach := Catalog.range_factor(level)
 	var radius := LIGHTNING_RADIUS * reach
 	# 随机选屏内敌人落雷；可用目标不足时，余下的雷随机落在屏内。
-	for i in range(Catalog.cast_count(level, level)):
+	for i in range(Catalog.cast_count(CAST_BASE[level - 1], level)):
 		var point: Vector2
 		if not candidates.is_empty():
 			var index := randi_range(0, candidates.size() - 1)
@@ -398,7 +400,7 @@ func _update_orbs(delta: float, level: int) -> void:
 	var evolved := _evolved.has(Skill.ORBS)
 	var reach := Catalog.range_factor(level)
 	var radius := ORBIT_RADIUS * reach
-	var count := Catalog.cast_count(level + 2, level)
+	var count := Catalog.cast_count(CAST_BASE[level - 1] + 2, level)
 	_orb_offsets.resize(count)
 	for i in range(count):
 		_orb_offsets[i] = BattlePlane.direction(_orbit_angle + TAU * i / count) * radius

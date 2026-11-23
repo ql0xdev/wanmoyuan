@@ -47,7 +47,7 @@ const CAVE_SCENE := "res://scenes/ui/cave_menu.tscn"
 const STONE_DROP_OFFSET := Vector2(24.0, -24.0)
 const EQUIPMENT_DROP_OFFSET := Vector2(-22.0, 22.0)
 const EQUIPMENT_SPREAD := 54.0
-const MAX_ENEMIES := 150
+const MAX_ENEMIES := 180
 const VICTORY_SLOW_DURATION := 0.5
 const VICTORY_TIME_SCALE := 0.45
 const VICTORY_LOOT_SECONDS := 10
@@ -144,8 +144,8 @@ func _ready() -> void:
 	_player.refresh_equipment(true)
 	_loot_rng.randomize()
 	_consumable_rng.randomize()
-	_wolf_pool = ObjectPool.new(WOLF_SCENE, $Enemies, 128, _connect_enemy.bind(_recycle_wolf))
-	_crow_pool = ObjectPool.new(CROW_SCENE, $Enemies, 80, _connect_crow)
+	_wolf_pool = ObjectPool.new(WOLF_SCENE, $Enemies, 160, _connect_enemy.bind(_recycle_wolf))
+	_crow_pool = ObjectPool.new(CROW_SCENE, $Enemies, 96, _connect_crow)
 	_golem_pool = ObjectPool.new(GOLEM_SCENE, $Enemies, 24, _connect_enemy.bind(_recycle_golem))
 	_boss_pool = ObjectPool.new(BOSS_SCENE, $Enemies, 1, _connect_boss)
 	_orb_pool = ObjectPool.new(ORB_SCENE, $Projectiles, 100, _connect_orb)
