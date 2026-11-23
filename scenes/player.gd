@@ -91,6 +91,12 @@ func grant_shield(amount: int, duration: float, heal_fraction: float) -> void:
 	shield_changed.emit(shield)
 
 
+func clear_shield() -> void:
+	shield = 0
+	_shield_left = 0.0
+	shield_changed.emit(shield)
+
+
 func _update_shield(delta: float) -> void:
 	if shield <= 0:
 		return

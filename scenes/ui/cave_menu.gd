@@ -42,13 +42,8 @@ var _passive_nodes := {}
 var _stat_values: Array[Label] = []
 var _learned_card := Look.box(Look.BACKGROUND, Look.GOLD)
 var _locked_card := Look.box(Look.BACKGROUND, Look.BORDER)
-var _evolution_card := Look.evolution_box()
-var _evolution_hover := Look.evolution_box(true)
 var _abyss_buttons := {}
-var _loadout_buttons := {}
-var _skill_options: VBoxContainer
 var _selected_abyss := Catalog.DEFAULT_ABYSS
-var _loadout: Array = Catalog.DEFAULT_LOADOUT.duplicate()
 var _flash_tween: Tween
 var _forge_menu: ForgeMenu
 var _picker: SacrificePicker
@@ -349,12 +344,6 @@ func _build_preparation() -> void:
 		button.toggle_mode = true
 		button.pressed.connect(_choose_abyss.bind(abyss))
 		_abyss_buttons[abyss] = button
-	_add_label(_prep_options, "携带功法 · 最多四个，至少一个攻击功法", 24)
-	var guide := _add_label(_prep_options, "怎么进化？配好搭档或点满所需心法。进战斗把要进化的功法升到 3 级，之后升级时选择金卡。", 23)
-	guide.modulate = Look.MUTED
-	_skill_options = VBoxContainer.new()
-	_skill_options.add_theme_constant_override("separation", 8)
-	_prep_options.add_child(_skill_options)
 
 
 func _show_preparation() -> void:
@@ -365,7 +354,6 @@ func _show_preparation() -> void:
 	_back.show()
 	_title.text = "秘境准备"
 	_preparation.scroll_vertical = 0
-	_rebuild_loadout()
 	_refresh_preparation()
 
 
@@ -380,32 +368,9 @@ func _hide_preparation() -> void:
 	_enter.disabled = false
 
 
-func _rebuild_loadout() -> void:
-	for child: Node in _skill_options.get_children():
-		_skill_options.remove_child(child)
-		child.queue_free()
-	_loadout_buttons.clear()
-	for id: String in SaveManager.learned_skills():
-		var node: Dictionary = Catalog.SKILL_DATA[id]
-		var button := _add_button(_skill_options, 54)
-		button.toggle_mode = true
-		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		button.tooltip_text = node.detail
-		button.pressed.connect(_toggle_skill.bind(id))
-		_loadout_buttons[id] = button
-
-
 func _choose_abyss(id: String) -> void:
 	if SaveManager.is_unlocked(id):
 		_selected_abyss = id
-	_refresh_preparation()
-
-
-func _toggle_skill(id: String) -> void:
-	if _loadout.has(id):
-		_loadout.erase(id)
-	elif _loadout.size() < Catalog.MAX_LOADOUT and SaveManager.learned_skills().has(id):
-		_loadout.append(id)
 	_refresh_preparation()
 
 
@@ -417,59 +382,8 @@ func _refresh_preparation() -> void:
 		button.set_pressed_no_signal(id == _selected_abyss)
 		var context := "需突破%s" % Catalog.REALMS[abyss.realm].name if button.disabled else ("已通关" if SaveManager.has_cleared(id) else "可进入")
 		button.text = "%s　·　%d 秒　·　%s" % [abyss.name, abyss.duration, context]
-	var passives := SaveManager.passive_levels()
-	var ready := {}
-	var partners := {}
-	for id: String in _loadout:
-		if Catalog.evolution_matches(id, _loadout, passives):
-			var evolution: Dictionary = Catalog.EVOLUTIONS[id]
-			ready[id] = true
-			if evolution.has("partner"):
-				var names: PackedStringArray = partners.get(evolution.partner, PackedStringArray())
-				names.append(Catalog.SKILL_DATA[id].name)
-				partners[evolution.partner] = names
-	var learned := SaveManager.learned_skills()
-	for id: String in _loadout_buttons:
-		var button: Button = _loadout_buttons[id]
-		var selected := _loadout.has(id)
-		button.set_pressed_no_signal(selected)
-		button.disabled = not selected and _loadout.size() >= Catalog.MAX_LOADOUT
-		var data: Dictionary = Catalog.SKILL_DATA[id]
-		var lines := PackedStringArray(["%s　·　%s" % [data.name, "攻击" if data.attack else "辅助"]])
-		if selected and Catalog.EVOLUTIONS.has(id):
-			var rule: Dictionary = Catalog.EVOLUTIONS[id]
-			if ready.has(id):
-				lines.append("局内升到 3 级，选金卡进化为「%s」" % rule.name)
-			lines.append(_evolution_requirement(rule, ready.has(id), learned))
-		if partners.has(id):
-			lines.append("%s的进化搭档 · 携带即可，无需升级" % "、".join(partners[id]))
-		button.text = "\n".join(lines)
-		button.custom_minimum_size.y = 54.0 + 32.0 * (lines.size() - 1)
-		if ready.has(id) or partners.has(id):
-			button.add_theme_stylebox_override("pressed", _evolution_card)
-			button.add_theme_stylebox_override("hover_pressed", _evolution_hover)
-			button.add_theme_color_override("font_pressed_color", Look.GOLD)
-		else:
-			button.remove_theme_stylebox_override("pressed")
-			button.remove_theme_stylebox_override("hover_pressed")
-			button.remove_theme_color_override("font_pressed_color")
-	var first := Catalog.first_attack(_loadout)
-	var label := "请选择一个攻击功法" if first.is_empty() else "开局 %s；其余通过升级习得" % Catalog.SKILL_DATA[first].name
-	_prep_info.text = "已选 %d/%d · %s" % [_loadout.size(), Catalog.MAX_LOADOUT, label]
-	_enter.disabled = not SaveManager.valid_loadout(_loadout)
+	_prep_info.text = "开局 御剑术 Lv1 · 其余已领悟功法可在局内抽取"
 	_enter.text = "开战 · %s" % Catalog.ABYSSES[_selected_abyss].name
-
-
-func _evolution_requirement(rule: Dictionary, met: bool, learned: Array) -> String:
-	if rule.has("partner"):
-		var name: String = Catalog.SKILL_DATA[rule.partner].name
-		if met:
-			return "搭档「%s」已携带" % name
-		if not learned.has(rule.partner):
-			return "进化需携带「%s」 · 可在功法页领悟" % name
-		return "进化需同时携带「%s」" % name
-	var passive := "任意一门心法" if rule.passive == "any" else "「%s」" % Catalog.PASSIVES[rule.passive].name
-	return "%s已满级" % passive if met else "进化需在洞府点满%s" % passive
 
 
 func _enter_battle() -> void:
@@ -481,9 +395,9 @@ func _enter_battle() -> void:
 		_show_status("无法进入秘境，请重试。")
 		return
 	var battle := scene.instantiate()
-	if not battle.configure_run(_selected_abyss, _loadout) or get_tree().change_scene_to_node(battle) != OK:
+	if not battle.configure_run(_selected_abyss) or get_tree().change_scene_to_node(battle) != OK:
 		battle.free()
-		_show_status("无法进入秘境，请检查境界与功法。")
+		_show_status("无法进入秘境，请检查境界。")
 
 
 func _show_status(text: String) -> void:

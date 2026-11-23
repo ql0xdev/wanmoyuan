@@ -1,5 +1,6 @@
 extends Control
 
+const SkillBar = preload("res://scenes/ui/run_skill_bar.gd")
 @onready var _realm_label: Label = $Top/Margin/Rows/Heading/Realm
 @onready var _xp_bar: ProgressBar = $Top/Margin/Rows/Experience
 @onready var _xp_label: Label = $Top/Margin/Rows/Experience/Value
@@ -16,8 +17,6 @@ extends Control
 @onready var _boss_notice: PanelContainer = $BossNotice
 @onready var _wave_notice: Label = $WaveNotice
 @onready var _boss_action: Label = $BossAction
-@onready var _victory_loot_panel: PanelContainer = $VictoryLoot
-@onready var _victory_loot_label: Label = $VictoryLoot/Margin/Content/Heading/Seconds
 @onready var _loot_notice: Button = $LootNotice
 
 var _loot_tween: Tween
@@ -26,15 +25,30 @@ var _wave_tween: Tween
 var _action_tween: Tween
 var _boss_name := ""
 var _shield := 0
-var _shown_victory_loot_seconds := -1
+var _skill_bar: SkillBar
 var loot_item_id := 0
+
+
+func _ready() -> void:
+	_skill_bar = SkillBar.new()
+	_skill_bar.name = "RunSkillBar"
+	add_child(_skill_bar)
+	_skill_bar.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	_skill_bar.offset_left = -243
+	_skill_bar.offset_right = 243
+	_skill_bar.offset_top = -65
+	_skill_bar.offset_bottom = -13
+
+
+func set_skills(skills: Array[Dictionary]) -> void:
+	_skill_bar.display(skills)
 
 
 func set_progress(level: int, abyss: String, realm: String, xp: int, required: int) -> void:
 	_realm_label.text = "%s · %s · Lv%d" % [abyss, realm, level]
 	_xp_bar.max_value = required
 	_xp_bar.value = xp
-	_xp_label.text = "修为 %d / %d" % [mini(xp, required), required]
+	_xp_label.text = "修为灵石 %d / %d" % [mini(xp, required), required]
 
 
 func set_health(current: int, maximum: int) -> void:
@@ -48,8 +62,8 @@ func set_shield(amount: int) -> void:
 	set_health(int(_health_bar.value), int(_health_bar.max_value))
 
 
-func set_survival_time(seconds: int) -> void:
-	_time_label.text = "%02d:%02d" % [seconds / 60.0, seconds % 60]
+func set_survival_time(seconds: int, duration: int) -> void:
+	_time_label.text = "%02d:%02d / %02d:%02d" % [seconds / 60.0, seconds % 60, duration / 60.0, duration % 60]
 
 
 func set_spirit_stones(amount: int) -> void:
@@ -108,26 +122,6 @@ func show_boss_action(action: String) -> void:
 	_action_tween = create_tween()
 	_action_tween.tween_property(_boss_action, "modulate:a", 0.0, 0.24).set_delay(1.15)
 	_action_tween.tween_callback(_boss_action.hide)
-
-
-func show_victory_loot(seconds: int) -> void:
-	_boss_bar.hide()
-	_wave_notice.hide()
-	_boss_action.hide()
-	if _boss_notice_tween != null:
-		_boss_notice_tween.kill()
-	_boss_notice.hide()
-	menu_button.hide()
-	shop_button.hide()
-	bag_button.hide()
-	set_victory_loot_seconds(seconds)
-	_victory_loot_panel.show()
-
-
-func set_victory_loot_seconds(seconds: int) -> void:
-	if seconds != _shown_victory_loot_seconds:
-		_shown_victory_loot_seconds = seconds
-		_victory_loot_label.text = "%d 秒" % seconds
 
 
 func show_loot(message: String, color: Color, item_id := 0) -> void:

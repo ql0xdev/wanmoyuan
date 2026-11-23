@@ -244,7 +244,8 @@ func _test_cards() -> void:
 	await _capture("08a-混合卡池")
 	_close_cards(battle)
 	for id: int in skills._selected:
-		skills._levels[id] = 3
+		skills._levels[id] = Catalog.RUN_SKILL_CAP
+	skills._learned = ["sword"]
 	_open_cards(battle, _card_seed(skills, "stat", "normal"))
 	_expect(battle._choices.size() == 3 and battle._choices.all(func(card: Dictionary) -> bool: return card.type == "stat"),
 		"全满后仍有三张属性卡")
@@ -303,7 +304,7 @@ func _test_legacy() -> void:
 	expected.equipment_storage[0]["star"] = 0
 	_expect(_save._profile == expected, "存档原字段完全保留")
 	_expect("save_version=4" in FileAccess.get_file_as_string(SAVE) and _save.save_profile() == OK
-		and "save_version=5" in FileAccess.get_file_as_string(SAVE) and _save._load_profile() == OK
+		and "save_version=6" in FileAccess.get_file_as_string(SAVE) and _save._load_profile() == OK
 		and _save._profile == expected, "首次保存原子迁移并重读")
 	var cave := await _scene(CAVE)
 	cave._tabs.current_tab = 2
@@ -322,9 +323,9 @@ func _test_stress() -> void:
 		_expect(_save.breakthrough() == OK, "解锁五层")
 	var battle := await _battle("source")
 	battle._player.accepts_damage = false
-	battle._elapsed = 299.95
-	battle._spawns._next_wave = 300.0
-	battle._spawns._next_golem = 300.0
+	battle._elapsed = 239.95
+	battle._spawns._next_wave = 240.0
+	battle._spawns._next_golem = 240.0
 	battle._physics_process(0.06)
 	var center: Vector3 = battle._player.global_position
 	for enemy in battle._living_enemies:
@@ -440,7 +441,7 @@ func _tap_touch(battle: Node, position: Vector2) -> void:
 
 func _battle(abyss: String) -> Node:
 	var battle := (load(BATTLE) as PackedScene).instantiate()
-	_expect(battle.configure_run(abyss, Catalog.DEFAULT_LOADOUT), "配置战斗")
+	_expect(battle.configure_run(abyss), "配置战斗")
 	await _change(battle)
 	battle.set_physics_process(false)
 	battle._skills.set_physics_process(false)

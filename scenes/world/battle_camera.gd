@@ -1,7 +1,7 @@
 extends Camera3D
 
 const FOLLOW_SPEED := 7.0
-const FOLLOW_OFFSET := Vector3(0.0, 935.0, 935.0)
+const FOLLOW_OFFSET := Vector3(0.0, 935.0, 935.0) * 1.4
 const GROUND := Plane(Vector3.UP, 0.0)
 const VIEW_FRAMING := 1.0 / 3.0
 const Look = preload("res://scenes/ui/ui_look.gd")

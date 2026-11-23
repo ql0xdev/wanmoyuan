@@ -27,7 +27,7 @@ corner_radius_bottom_left = 8
 corner_radius_bottom_right = 8
 
 [sub_resource type="Theme" id="Theme_cards"]
-Button/font_sizes/font_size = 22
+Button/font_sizes/font_size = 20
 Button/styles/normal = SubResource("StyleBoxFlat_card")
 Button/styles/hover = SubResource("StyleBoxFlat_hover")
 Button/styles/pressed = SubResource("StyleBoxFlat_hover")
@@ -82,16 +82,19 @@ alignment = 1
 custom_minimum_size = Vector2(216, 236)
 layout_mode = 2
 focus_mode = 0
+autowrap_mode = 3
 
 [node name="Card2" type="Button" parent="Center/Content/Cards"]
 custom_minimum_size = Vector2(216, 236)
 layout_mode = 2
 focus_mode = 0
+autowrap_mode = 3
 
 [node name="Card3" type="Button" parent="Center/Content/Cards"]
 custom_minimum_size = Vector2(216, 236)
 layout_mode = 2
 focus_mode = 0
+autowrap_mode = 3
 
 [node name="Hint" type="Label" parent="Center/Content"]
 layout_mode = 2

@@ -16,8 +16,8 @@ signal organize_requested
 @onready var _organize: Button = $Center/Panel/Margin/Content/Organize
 
 
-func open(won: bool, seconds: int, kills: int, level: int, retreated := false) -> void:
-	_title.text = "提前撤离" if retreated else ("渡劫成功" if won else "身死道消")
+func open(won: bool, seconds: int, kills: int, level: int, retreated := false, survived := false) -> void:
+	_title.text = "存活结算" if survived else ("提前撤离" if retreated else ("渡劫成功" if won else "身死道消"))
 	_title.modulate = Look.GOLD
 	var time := "%02d:%02d" % [seconds / 60.0, seconds % 60]
 	_stats.text = "存活时间  %s\n击杀数  %d\n局内等级  %d" % [time, kills, level]

@@ -107,7 +107,7 @@ func _test_play(save: Node) -> void:
 	_expect(cave._breakthrough.disabled and save.breakthrough() != OK, "灵石不足不能突破")
 	_button(CAVE_CONTENT + "Enter").pressed.emit()
 	_expect(cave._abyss_buttons.middle.disabled and cave._abyss_buttons.inner.disabled, "高层秘境初始锁定")
-	_expect(cave._loadout_buttons.heal.disabled, "限制最多携带四个功法")
+	_expect(cave._prep_options.get_child_count() == Cultivation.ABYSSES.size() + 1, "仅选秘境")
 	_button(CAVE_CONTENT + "Enter").pressed.emit()
 	await scene_changed
 
@@ -116,9 +116,6 @@ func _test_play(save: Node) -> void:
 	_drop_stones(battle, 270, battle._player.global_position)
 	_drop_stones(battle, 50, battle._player.global_position + Vector3(750, 0, 0))
 	await _test_battle_menu(battle, save)
-	var crystal: Node = battle._crystal_pool.acquire()
-	crystal.drop(battle._player.global_position, battle._player)
-	crystal._physics_process(1.0 / 60.0)
 	battle._player.take_damage(70)
 	_tap(battle, battle._hud.shop_button)
 	_expect(paused and battle._shop_menu.visible, "触屏可打开炼丹房，不触发摇杆")
@@ -126,7 +123,7 @@ func _test_play(save: Node) -> void:
 	battle._shop_menu.purchase_requested.emit("rage")
 	battle._shop_menu.purchase_requested.emit("rage")
 	battle._shop_menu.close_requested.emit()
-	_expect(battle._spirit_stones == 120 and battle._xp == 1 and battle._player.health == 80
+	_expect(battle._spirit_stones == 120 and battle._xp == 0 and battle._player.health == 80
 		and battle._player.stats.damage(100) == 130, "回血丹、狂暴丹与消费，未拾取灵石不入账")
 	_expect(save.spirit_stones() == 0, "局内所得不提前入账")
 	battle._inventory.collect(WHITE_WEAPON.duplicate(true))
@@ -157,17 +154,10 @@ func _test_play(save: Node) -> void:
 	battle = current_scene
 	_expect(not paused and save.spirit_stones() == 120 and battle._spirit_stones == 0 and battle._xp == 0
 		and battle._inventory.worn.is_empty() and battle._player.stats.damage(100) == 100, "重开清理局内状态")
-	await _defeat_boss(battle, Vector3(750, 0, 0))
-	_expect(save.spirit_stones() == 120 and save.has_cleared("outer") and save.equipment_count() == 1
-		and _ground_gear(battle).size() == 2, "魔尊未拾取的两件装备和灵石都不自动带回")
-
-	_button(RESULT_CONTENT + "Restart").pressed.emit()
-	await scene_changed
-	battle = current_scene
 	_drop_stones(battle, 200, battle._player.global_position)
-	await _defeat_boss(battle, Vector3.ZERO)
-	_expect(save.spirit_stones() == 520 and save.equipment_count() == 3 and _ground_gear(battle).is_empty(),
-		"胜利后实际拾到的魔尊灵石和两件装备带回")
+	await _defeat_boss(battle, Vector3(750, 0, 0))
+	_expect(save.spirit_stones() == 520 and save.equipment_count() == 3 and save.has_cleared("outer"),
+		"胜利带回已拾灵石，魔尊掉落另当帧入账")
 	_button(RESULT_CONTENT + "Cave").pressed.emit()
 	await scene_changed
 	cave = current_scene
@@ -186,14 +176,12 @@ func _test_play(save: Node) -> void:
 	_expect(save.learned_skills().has("sword_storm") and save.passive_levels().body == 1 and save.skill_points() == 0, "领悟万剑诀并加锻体诀")
 	_button(CAVE_CONTENT + "Enter").pressed.emit()
 	_expect(not cave._abyss_buttons.middle.disabled and cave._abyss_buttons.inner.disabled, "筑基仅解锁中渊")
-	for id: String in ["sword", "lightning", "orbs", "ice", "sword_storm", "heal"]:
-		cave._loadout_buttons[id].pressed.emit()
 	_button(CAVE_CONTENT + "Enter").pressed.emit()
 	await scene_changed
 	battle = current_scene
 	_expect(battle._abyss_id == "outer" and battle._player.max_health == 230 and battle._player.health == 230
 		and battle._player.stats.damage(100) == 244 and is_equal_approx(battle._player.stats.move_speed(), 220.0), "筑基回外渊享受攻击、血量、移速提升")
-	_expect(battle._skills._levels[Skill.SWORD_STORM] == 1 and battle._skills._levels[Skill.HEAL] == 0, "首个攻击功法开局生效")
+	_expect(battle._skills._levels[Skill.SWORD] == 1 and battle._skills._levels[Skill.SWORD_STORM] == 0, "开局只习得御剑术")
 	_test_storm_and_card_pool(battle)
 	battle._player.take_damage(1000)
 	_button(RESULT_CONTENT + "Cave").pressed.emit()
@@ -222,7 +210,7 @@ func _test_play(save: Node) -> void:
 	cave._skill_nodes.fire.button.pressed.emit()
 	cave._skill_nodes.blink.button.pressed.emit()
 	_expect(save.skill_points() == 0 and save.learned_skills().has("fire") and save.learned_skills().has("blink"), "领悟离火印和缩地成寸")
-	await _enter_abyss("inner", ["sword", "lightning", "orbs", "ice", "fire", "blink"])
+	await _enter_abyss("inner")
 	battle = current_scene
 	var inner_wolf: Node = battle._spawn_enemy(battle._wolf_pool)
 	_expect(inner_wolf.max_health == 120 and inner_wolf.damage == 40 and is_equal_approx(battle._spawn_interval(0.0), 1.0), "内渊数值")
@@ -232,7 +220,7 @@ func _test_play(save: Node) -> void:
 	_button(RESULT_CONTENT + "Restart").pressed.emit()
 	await scene_changed
 	battle = current_scene
-	_expect(battle._abyss_id == "inner" and battle._loadout == ["fire", "blink"], "重开沿用秘境和配功法")
+	_expect(battle._abyss_id == "inner" and battle._skills._selected == [Skill.SWORD], "重开沿用秘境、重置功法")
 	_test_storage_overflow(battle, save)
 	_button(RESULT_CONTENT + "Cave").pressed.emit()
 	await scene_changed
@@ -264,19 +252,15 @@ func _test_storm_and_card_pool(battle: Node) -> void:
 	var skills: Node = battle._skills
 	var launches := []
 	var initial_launch: Callable = skills._launch_sword
-	skills._launch_sword = func(_origin: Vector3, direction: Vector3, amount: int) -> void:
+	skills._launch_sword = func(_origin: Vector3, direction: Vector3, amount: int, _reach: float) -> void:
 		launches.append([direction, amount])
 	skills._cast_storm(1)
 	skills._launch_sword = initial_launch
 	_expect(launches.size() == 8 and launches[0][1] == 37 and launches[0][0].dot(launches[4][0]) < -0.99, "万剑诀发射八剑并走统一伤害")
 	var choices: Array = skills.roll_choices()
 	_expect(choices.size() == 3 and choices.all(func(card: Dictionary) -> bool:
-		return card.type == "stat" or (card.type == "skill" and card.id in [Skill.SWORD_STORM, Skill.HEAL])), "卡池排除未携带功法")
-	for i in range(3):
-		skills.apply_upgrade(Skill.SWORD_STORM)
-		skills.apply_upgrade(Skill.HEAL)
-	var filled: Array = skills.roll_choices()
-	_expect(filled.size() == 3 and filled.all(func(card: Dictionary) -> bool: return card.type == "stat"), "全满级三张属性卡")
+		return card.type == "stat" or card.id in [Skill.SWORD, Skill.LIGHTNING, Skill.ORBS, Skill.ICE, Skill.SWORD_STORM, Skill.HEAL]),
+		"卡池排除未领悟功法")
 	skills.apply_card({"type": "stat", "id": "health_flat", "rarity": "normal"})
 	_expect(battle._player.max_health == 250, "气血卡 +20")
 
@@ -349,9 +333,10 @@ func _test_fire_and_blink(battle: Node) -> void:
 	var skills: Node = battle._skills
 	var enemy: Node3D = battle._living_enemies[0]
 	var original: int = enemy._health
-	skills._cast_fire()
+	skills._cast_fire(1)
 	skills._update_fire(3.0, 1)
-	_expect(enemy._health == original - 3 * battle._player.stats.damage(12) and skills._fire_zones.is_empty(), "离火印持续三秒、逐秒结算")
+	_expect(enemy._health == maxi(0, original - 6 * roundi(battle._player.stats.damage(12) * 0.60))
+		and skills._fire_zones.is_empty(), "离火印持续三秒、每半秒结算")
 	skills.apply_upgrade(Skill.BLINK)
 	var start: Vector3 = battle._player.global_position
 	seed(765)
@@ -415,34 +400,13 @@ func _test_evacuation(save: Node) -> void:
 	battle._drop_equipment(Vector3(1000, 0, 0), WHITE_WEAPON.duplicate())
 	_drop_stones(battle, 500, Vector3(1000, 0, 0))
 	_kill_boss(battle, Vector3(325, 0, 0))
+	_expect(battle._settlement_saved and save.spirit_stones() == 200 and save.equipment_count() == 2,
+		"魔尊当帧结算，远处普通掉落未带回")
 	await create_timer(0.65, true, false, true).timeout
-	_expect(not paused and is_equal_approx(Engine.time_scale, 1.0)
-		and battle._hud._victory_loot_panel.visible and battle._hud._victory_loot_label.text == "10 秒",
-		"魔尊慢动作后开始 10 秒倒计时，不立即结算")
-	_expect(not battle._player.accepts_damage and not battle.get_node("Enemies").visible
-		and not battle.get_node("Projectiles").visible and battle._skills.process_mode == Node.PROCESS_MODE_DISABLED,
-		"倒计时内可安全拾取，不再刷怪或施法")
-	var started := Time.get_ticks_msec()
-	var ended_at: float = battle._elapsed
-	battle._player._on_joystick_direction_changed(Vector2.RIGHT)
-	await create_timer(1.60, true, true).timeout
-	battle._player._on_joystick_direction_changed(Vector2.ZERO)
-	_expect(battle._player.global_position.x > 270.0 and battle._inventory.new_loot().size() == 2
-		and battle._spirit_stones == 200 and _ground_gear(battle).size() == 1,
-		"倒计时内能走到远处，实际捡到魔尊的两件装备和灵石")
-	_expect(battle._hud._shown_victory_loot_seconds < 10 and battle._elapsed == ended_at
-		and not save.has_profile(), "倒计时递减，不计入战斗用时，也未提前入档")
-	while battle._victory_loot_left > 0.30 and not paused:
-		await physics_frame
-	_expect(battle._victory_loot_left > 0.0 and not paused and not battle._result_menu.visible, "时间未到，不提前结算")
-	while not paused:
-		await physics_frame
-	var seconds := (Time.get_ticks_msec() - started) / 1000.0
-	_expect(seconds >= 8.8 and seconds <= 11.5, "实际等待约 10 秒（%.2f 秒）" % seconds)
-	_expect(paused and battle._result_menu._title.text == "渡劫成功" and save.has_cleared("outer"),
-		"时间到自动胜利结算")
+	_expect(paused and Engine.time_scale == 1.0 and battle._result_menu._title.text == "渡劫成功"
+		and save.has_cleared("outer"), "慢动作后直接展示结果，无离场倒计时")
 	_expect(save.spirit_stones() == 200 and save.equipment_count() == 2,
-		"只保存倒计时结束前已拾取的灵石和装备")
+		"播放结果不重复保存")
 
 
 func _test_storage_overflow(battle: Node, save: Node) -> void:
@@ -521,18 +485,18 @@ func _test_stress(save: Node) -> void:
 		"准备内渊压测存档")
 	var scene := load("res://scenes/main.tscn") as PackedScene
 	var battle := scene.instantiate()
-	_expect(battle.configure_run("inner", Cultivation.DEFAULT_LOADOUT) and change_scene_to_node(battle) == OK, "进入内渊")
+	_expect(battle.configure_run("inner") and change_scene_to_node(battle) == OK, "进入内渊")
 	await scene_changed
 	battle._player.accepts_damage = false
 	# 保持刷怪和 3D 逻辑运行；关闭出剑，避免击杀影响固定同屏负载。
 	battle._skills.set_physics_process(false)
-	for i in range(100):
-		var position_in_world := Vector3((i % 10 - 4.5) * 65.0, 0.0, (floori(i / 10.0) - 4.5) * 62.0)
+	for i in range(battle.MAX_ENEMIES):
+		var position_in_world := Vector3((i % 12 - 5.5) * 65.0, 0.0, (floori(i / 12.0) - 5.5) * 62.0)
 		var pool: RefCounted = battle._crow_pool if i % 4 == 0 else battle._wolf_pool
 		battle._spawn_enemy_at(pool, position_in_world)
-	_expect(battle._active_enemy_count == 99, "怪满时为 180 秒魔尊预留位置")
+	_expect(battle._active_enemy_count == 149, "怪满时为 240 秒魔尊预留位置")
 	battle._spawn_boss()
-	_expect(battle._active_enemy_count == 100 and battle._boss_spawned, "同屏 100 怪与魔尊预留")
+	_expect(battle._active_enemy_count == 150 and battle._boss_spawned, "同屏 150 怪与魔尊预留")
 	await create_timer(3.0).timeout
 	var start := Time.get_ticks_usec()
 	var frames := 0
@@ -544,18 +508,16 @@ func _test_stress(save: Node) -> void:
 		worst_frame = maxi(worst_frame, now - last)
 		last = now
 		frames += 1
-	print("100 怪 / 内渊：%.1f FPS，最长帧 %.1f ms (%d 帧)" % [
+	print("150 怪 / 内渊：%.1f FPS，最长帧 %.1f ms (%d 帧)" % [
 		frames * 1000000.0 / (Time.get_ticks_usec() - start), worst_frame / 1000.0, frames,
 	])
-	_expect(battle._active_enemy_count == 100 and battle._player.is_alive(), "固定负载全程稳定在 100 怪")
+	_expect(battle._active_enemy_count == 150 and battle._player.is_alive(), "固定负载全程稳定在 150 怪")
 
 
-func _enter_abyss(id: String, toggle: Array = []) -> void:
+func _enter_abyss(id: String) -> void:
 	var cave := current_scene
 	_button(CAVE_CONTENT + "Enter").pressed.emit()
 	cave._abyss_buttons[id].pressed.emit()
-	for skill: String in toggle:
-		cave._loadout_buttons[skill].pressed.emit()
 	_button(CAVE_CONTENT + "Enter").pressed.emit()
 	await scene_changed
 
@@ -589,21 +551,18 @@ func _pick_ground_gear(battle: Node, drop: Node3D) -> void:
 func _defeat_boss(battle: Node, offset: Vector3) -> void:
 	_kill_boss(battle, offset)
 	await create_timer(0.63, true, false, true).timeout
-	_expect(not paused and is_equal_approx(Engine.time_scale, 1.0) and battle._hud._victory_loot_panel.visible,
-		"胜利慢动作结束后开始离场倒计时")
-	# 这里跳过剩余倒计时；evacuation 测试另走一次完整 10 秒流程。
-	battle._physics_process(10.0)
-	_expect(paused and battle._result_menu.visible, "离场倒计时时间到结算")
+	_expect(paused and is_equal_approx(Engine.time_scale, 1.0) and battle._result_menu.visible,
+		"胜利慢动作后直接显示结算")
 
 
 func _kill_boss(battle: Node, offset: Vector3) -> void:
-	battle._elapsed = 179.95
+	battle._elapsed = 239.95
 	battle._physics_process(0.02)
-	_expect(not battle._boss_spawned, "180 秒之前不刷魔尊")
+	_expect(not battle._boss_spawned, "240 秒之前不刷魔尊")
 	battle._physics_process(0.04)
 	var boss: Node3D = battle._living_enemies.filter(func(enemy: Node3D) -> bool: return enemy is DemonLord).front()
 	var health: int = {"outer": 800, "middle": 2400, "inner": 6400}[battle._abyss_id]
-	_expect(battle._boss_spawned and boss.max_health == health and boss.period_multiplier == battle._abyss.boss_period, "180 秒刷对应魔尊")
+	_expect(battle._boss_spawned and boss.max_health == health and boss.period_multiplier == battle._abyss.boss_period, "240 秒刷对应魔尊")
 	boss.global_position = battle._player.global_position + offset
 	boss.take_damage(boss.max_health)
 

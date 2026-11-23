@@ -35,7 +35,7 @@ func warning_active() -> bool:
 
 
 func advance(previous: float, now: float, center: Vector3, warn: Callable,
-		spawn_regular: Callable, spawn_at: Callable) -> void:
+		spawn_regular: Callable, spawn_at: Callable, spawn_wave := Callable()) -> void:
 	_progress += (now - previous) / interval_at(previous)
 	while now + EPSILON >= _next_wave - WARNING_LEAD:
 		if now + EPSILON < _next_wave:
@@ -51,14 +51,14 @@ func advance(previous: float, now: float, center: Vector3, warn: Callable,
 				_wave_mix += _abyss.crow_percent
 				kind = Kind.CROW if _wave_mix >= 100 else Kind.WOLF
 				_wave_mix %= 100
-			_waves.append({"kind": kind, "at": center + BattlePlane.direction(TAU * i / total) * WAVE_RADIUS})
+			_waves.append({"kind": kind, "at": center + BattlePlane.direction(TAU * i / total) * WAVE_RADIUS, "center": center})
 		_next_wave += WAVE_INTERVAL
 		_warned = false
 
 	if now + EPSILON >= _next_golem and spawn_regular.call(Kind.GOLEM):
 		var step: float = GOLEM_INTERVAL / _abyss.density
 		_next_golem += step * (1 + floori((now + EPSILON - _next_golem) / step))
-	_flush(_waves, spawn_at)
+	_flush(_waves, spawn_at, spawn_wave)
 	_flush(_summons, spawn_at)
 	while _progress + EPSILON >= 1.0:
 		var mix: int = _regular_mix + _abyss.crow_percent
@@ -77,9 +77,10 @@ func queue_summon(origin: Vector3) -> void:
 		_summons.append({"kind": kind, "at": origin + BattlePlane.direction(TAU * i / 6.0) * 66.0})
 
 
-func _flush(queue: Array[Dictionary], spawn_at: Callable) -> void:
+func _flush(queue: Array[Dictionary], spawn_at: Callable, spawn_wave := Callable()) -> void:
 	while not queue.is_empty():
 		var entry := queue.front() as Dictionary
-		if not spawn_at.call(entry.kind, entry.at):
+		var spawned: bool = spawn_wave.call(entry.kind, entry.at, entry.center) if spawn_wave.is_valid() else spawn_at.call(entry.kind, entry.at)
+		if not spawned:
 			return
 		queue.pop_front()

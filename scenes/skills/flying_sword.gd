@@ -17,11 +17,11 @@ func _ready() -> void:
 	_ray.hit_from_inside = true
 
 
-func launch(at: Vector3, direction: Vector3, damage: int) -> void:
+func launch(at: Vector3, direction: Vector3, damage: int, reach := 1.0) -> void:
 	global_position = at
 	_direction = direction if direction != Vector3.ZERO else Vector3.RIGHT
 	look_at(at + _direction)
-	_time_left = LIFETIME
+	_time_left = LIFETIME * reach
 	_damage = damage
 
 

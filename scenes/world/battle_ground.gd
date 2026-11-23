@@ -2,7 +2,7 @@ extends Node3D
 
 const BattlePlane = preload("res://scripts/battle_plane.gd")
 const CHUNK_SIZE := 1152.0
-const CHUNK_RADIUS := 2
+const CHUNK_RADIUS := 3
 
 @onready var _plane: MeshInstance3D = $Plane
 @onready var _rocks: MultiMeshInstance3D = $Rocks

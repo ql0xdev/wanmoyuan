@@ -1,7 +1,8 @@
 extends Node
 
 const SAVE_PATH := "user://save.cfg"
-const SAVE_VERSION := 5
+const SAVE_VERSION := 6
+const V41_SAVE_VERSION := 5
 const V4_SAVE_VERSION := 4
 const LEGACY_VERSION := 1
 const Catalog = preload("res://scripts/cultivation_catalog.gd")
@@ -92,17 +93,6 @@ func equipped_items() -> Dictionary:
 
 func is_unlocked(secret_realm: String) -> bool:
 	return Catalog.ABYSSES.has(secret_realm) and Catalog.realm_at_least(realm(), Catalog.ABYSSES[secret_realm].realm)
-
-
-func valid_loadout(loadout: Array) -> bool:
-	if loadout.size() > Catalog.MAX_LOADOUT or Catalog.first_attack(loadout).is_empty():
-		return false
-	var seen := {}
-	for skill: Variant in loadout:
-		if not skill is String or seen.has(skill) or not _profile["learned_skills"].has(skill):
-			return false
-		seen[skill] = true
-	return true
 
 
 func has_cleared(secret_realm: String) -> bool:
@@ -286,16 +276,17 @@ func _load_profile() -> Error:
 		return error
 	var legacy := not config.has_section_key("save", "save_version")
 	var version: Variant = config.get_value("save", "version" if legacy else "save_version", 0)
-	if not version is int or (version != LEGACY_VERSION if legacy else version not in [V4_SAVE_VERSION, SAVE_VERSION]):
+	if not version is int or (version != LEGACY_VERSION if legacy else version not in [V4_SAVE_VERSION, V41_SAVE_VERSION, SAVE_VERSION]):
 		return ERR_INVALID_DATA
 
 	var loaded := {}
 	for key: String in DEFAULT_PROFILE:
-		var value: Variant = config.get_value("profile", key, 0 if version < SAVE_VERSION and key in ["iron", "forge_count"] else null)
+		# 只读白名单字段，旧版携带配置即使存在也不进入新版档案。
+		var value: Variant = config.get_value("profile", key, 0 if version < V41_SAVE_VERSION and key in ["iron", "forge_count"] else null)
 		if typeof(value) != typeof(DEFAULT_PROFILE[key]):
 			return ERR_INVALID_DATA
 		loaded[key] = value
-	if version < SAVE_VERSION:
+	if version < V41_SAVE_VERSION:
 		for item: Variant in loaded.equipment_storage:
 			if item is Dictionary and not item.has("star"):
 				item["star"] = 0

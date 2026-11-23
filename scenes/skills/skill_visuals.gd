@@ -2,7 +2,7 @@ extends Node3D
 
 const SPHERE := preload("res://scenes/world/sphere_mesh.tres")
 const HEAL_FLASH_TIME := 0.32
-const WISP_SLOTS := 12
+const WISP_SLOTS := 15
 const PULSE_SLOTS := 12
 const PULSE_TIME := 0.46
 
@@ -19,7 +19,8 @@ var _pulse_index := 0
 var _pulse_mesh: TorusMesh
 var _wisp_material: StandardMaterial3D
 var _blast_material: StandardMaterial3D
-var _guard: MeshInstance3D
+var _auras := {}
+var _aura_mesh: TorusMesh
 var _shield: MeshInstance3D
 var _thunder: MeshInstance3D
 var _thunder_left := 0.0
@@ -56,8 +57,9 @@ func update_orbs(origin: Vector3, offsets: PackedVector3Array) -> void:
 			orb.global_position = origin + offsets[i] + Vector3.UP * 22.0
 
 
-func update_ice(origin: Vector3) -> void:
+func update_ice(origin: Vector3, reach: float) -> void:
 	_ice.global_position = origin + Vector3.UP * 1.0
+	_ice.scale = Vector3(reach, 1.0, reach)
 	_ice.show()
 
 
@@ -65,12 +67,7 @@ func hide_ice() -> void:
 	_ice.hide()
 
 
-func update_ascension(origin: Vector3, delta: float, shield: int, guard: bool) -> void:
-	if guard:
-		if _guard == null:
-			_guard = _mesh(_ring(48.0, 5.0), _glow(Color("#fbc779")))
-		_guard.global_position = origin + Vector3.UP * 8.0
-		_guard.show()
+func update_ascension(origin: Vector3, delta: float, shield: int) -> void:
 	if shield > 0:
 		if _shield == null:
 			_shield = _mesh(_ring(41.0, 4.0), _glow(Color("#72f0d6")))
@@ -137,7 +134,30 @@ func show_wisp(slot: int, at: Vector3, blast: bool) -> void:
 
 
 func hide_wisp(slot: int) -> void:
-	_wisps[slot].hide()
+	if not _wisps.is_empty():
+		_wisps[slot].hide()
+
+
+func show_aura(id: String, origin: Vector3, radius: float, tint: Color, delta: float) -> void:
+	if not _auras.has(id):
+		if _aura_mesh == null:
+			_aura_mesh = _ring(1.0, 0.048)
+		var material := StandardMaterial3D.new()
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_auras[id] = {"mesh": _mesh(_aura_mesh, material), "material": material, "phase": 0.0}
+	var entry: Dictionary = _auras[id]
+	entry.phase = fposmod(entry.phase + delta * TAU * 2.0, TAU)
+	tint.a = 0.65 + 0.18 * sin(entry.phase)
+	entry.material.albedo_color = tint
+	entry.mesh.global_position = origin + Vector3.UP * 4.0
+	entry.mesh.scale = Vector3(radius, 5.0, radius)
+	entry.mesh.show()
+
+
+func hide_aura(id: String) -> void:
+	if _auras.has(id):
+		_auras[id].mesh.hide()
 
 
 func show_blades(origin: Vector3, offsets: PackedVector3Array) -> void:
@@ -155,12 +175,16 @@ func show_blades(origin: Vector3, offsets: PackedVector3Array) -> void:
 		blade.show()
 
 
-func show_lightning(points: PackedVector3Array) -> void:
+func show_lightning(points: PackedVector3Array, reach: float) -> void:
 	for i in range(points.size()):
 		_bolts[i].global_position = points[i] + Vector3.UP * 91.0
 		_bolts[i].show()
 		_impacts[i].global_position = points[i] + Vector3.UP * 2.0
+		_impacts[i].scale = Vector3(reach, 1.0, reach)
 		_impacts[i].show()
+	for i in range(points.size(), _bolts.size()):
+		_bolts[i].hide()
+		_impacts[i].hide()
 
 
 func update_lightning(fraction: float) -> void:

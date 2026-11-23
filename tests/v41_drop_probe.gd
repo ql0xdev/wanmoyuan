@@ -28,7 +28,12 @@ func _run() -> void:
 	var outputs := 0
 	for id: String in Catalog.ABYSSES:
 		var battle := (load(BATTLE) as PackedScene).instantiate()
-		if not battle.configure_run(id, Catalog.DEFAULT_LOADOUT) or change_scene_to_node(battle) != OK:
+		var args := [id]
+		for method: Dictionary in battle.get_method_list():
+			if method.name == "configure_run" and method.args.size() == 2:
+				args.append(["sword", "lightning", "orbs", "ice"])
+				break
+		if not battle.callv("configure_run", args) or change_scene_to_node(battle) != OK:
 			quit(1)
 			return
 		await scene_changed

@@ -1,6 +1,7 @@
 extends Control
 
 const Look = preload("res://scenes/ui/ui_look.gd")
+const SkillBar = preload("res://scenes/ui/run_skill_bar.gd")
 
 signal closed
 signal retreat_requested
@@ -19,14 +20,21 @@ enum Confirmation { NONE, RETREAT, QUIT_GAME }
 
 var _in_battle := false
 var _confirmation := Confirmation.NONE
+var _skill_bar: SkillBar
+var _recipes: RichTextLabel
 
 
 func _ready() -> void:
 	Look.animate_panel(self, $Center)
 
 
-func open(in_battle: bool) -> void:
+func open(in_battle: bool, skills: Array[Dictionary] = [], recipes := PackedStringArray()) -> void:
 	_in_battle = in_battle
+	if in_battle:
+		if _skill_bar == null:
+			_make_run_summary()
+		_skill_bar.display(skills)
+		_recipes.text = "进化提示 · 主功法 Lv5\n" + ("\n".join(recipes) if not recipes.is_empty() else "当前没有待进化的功法")
 	_show_actions()
 	show()
 	_back.grab_focus()
@@ -42,6 +50,26 @@ func _show_actions() -> void:
 	_exit.show()
 	_exit.text = "退出游戏"
 	_back.text = "继续战斗" if _in_battle else "关闭菜单"
+	_show_run_summary(_in_battle)
+
+
+func _make_run_summary() -> void:
+	var content := _title.get_parent()
+	_skill_bar = SkillBar.new()
+	content.add_child(_skill_bar)
+	content.move_child(_skill_bar, _hint.get_index() + 1)
+	_recipes = RichTextLabel.new()
+	_recipes.custom_minimum_size = Vector2(0, 98)
+	_recipes.add_theme_font_size_override("normal_font_size", 18)
+	_recipes.add_theme_color_override("default_color", Look.GOLD)
+	content.add_child(_recipes)
+	content.move_child(_recipes, _skill_bar.get_index() + 1)
+
+
+func _show_run_summary(shown: bool) -> void:
+	if _skill_bar != null:
+		_skill_bar.visible = shown
+		_recipes.visible = shown
 
 
 func _save_progress() -> void:
@@ -78,6 +106,7 @@ func _ask_confirmation(action: Confirmation, title: String, hint: String) -> voi
 	_confirmation = action
 	_title.text = title
 	_hint.text = hint
+	_show_run_summary(false)
 	_save.hide()
 	_retreat.visible = action == Confirmation.RETREAT
 	_exit.visible = action == Confirmation.QUIT_GAME

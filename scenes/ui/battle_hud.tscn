@@ -312,53 +312,6 @@ theme_override_font_sizes/font_size = 42
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="VictoryLoot" type="PanelContainer" parent="."]
-visible = false
-layout_mode = 1
-anchor_right = 1.0
-offset_left = 18.0
-offset_top = 204.0
-offset_right = -18.0
-mouse_filter = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_top")
-
-[node name="Margin" type="MarginContainer" parent="VictoryLoot"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/margin_left = 16
-theme_override_constants/margin_top = 16
-theme_override_constants/margin_right = 16
-theme_override_constants/margin_bottom = 16
-
-[node name="Content" type="VBoxContainer" parent="VictoryLoot/Margin"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 8
-
-[node name="Heading" type="HBoxContainer" parent="VictoryLoot/Margin/Content"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 16
-alignment = 1
-
-[node name="Title" type="Label" parent="VictoryLoot/Margin/Content/Heading"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.941176, 0.776471, 0.454902, 1)
-theme_override_font_sizes/font_size = 36
-text = "离场倒计时"
-
-[node name="Seconds" type="Label" parent="VictoryLoot/Margin/Content/Heading"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.337255, 0.831373, 0.866667, 1)
-theme_override_font_sizes/font_size = 36
-
-[node name="Hint" type="Label" parent="VictoryLoot/Margin/Content"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.545098, 0.580392, 0.619608, 1)
-theme_override_font_sizes/font_size = 22
-text = "拾取装备和灵石，时间到后自动结算。"
-horizontal_alignment = 1
-
 [node name="LootNotice" type="Button" parent="."]
 visible = false
 layout_mode = 1

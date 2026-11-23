@@ -14,15 +14,15 @@ fog_enabled = true
 fog_mode = 1
 fog_light_color = Color(0.13, 0.18, 0.17, 1)
 fog_density = 0.8
-fog_depth_begin = 1750.0
-fog_depth_end = 3450.0
+fog_depth_begin = 2450.0
+fog_depth_end = 4830.0
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_grid"]
 shader = ExtResource("2_grid")
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
 material = SubResource("ShaderMaterial_grid")
-size = Vector2(9216, 9216)
+size = Vector2(16128, 16128)
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_rock"]
 albedo_color = Color(0.22, 0.25, 0.24, 1)

@@ -86,7 +86,7 @@ func _test_spawn_rules() -> void:
 		spawns.advance(56.99, 57, center, warnings, deny, batch)
 		_expect(state.warnings == 1 and ring.is_empty(), id + " 57 秒预警且尚未刷新")
 		spawns.advance(59.99, 60, center, warnings, deny, batch)
-		var count: int = [15, 18, 20, 23, 27][index]
+		var count: int = [23, 27, 30, 34, 40][index]
 		_expect(ring.size() == 2 and spawns._waves.size() == count - 2, id + " 满员时超出的兽潮排队")
 		state.slots = 100
 		spawns.advance(60, 60.1, Vector3.ZERO, warnings, deny, batch)
@@ -141,7 +141,7 @@ func _test_campaign() -> void:
 	_expect(_save.skill_points() == 15 and cave._breakthrough.disabled and "渡劫" in cave._breakthrough.text, "渡劫到顶，五次共 15 点")
 	await _test_layer("source", false, "", "14-五层额外渡劫装")
 	var loaded := ConfigFile.new()
-	_expect(loaded.load(SAVE_PATH) == OK and loaded.get_value("save", "save_version", 0) == 5, "存档 schema 为 5")
+	_expect(loaded.load(SAVE_PATH) == OK and loaded.get_value("save", "save_version", 0) == 6, "存档 schema 为 6")
 	var copy := _save.get_script().new() as Node
 	_expect(copy._load_profile() == OK and copy.realm() == "tribulation" and copy.skill_points() == 15 and copy.storage() == _save.storage(), "V4 高阶掉装和总点数可重新读取")
 	copy.free()
@@ -176,7 +176,7 @@ func _breakthrough(cave: Node, realm: String, cost: int, power: float, shot := "
 
 func _test_layer(id: String, stage_demo := false, arrival := "", loot := "") -> void:
 	var battle := await _battle(id)
-	var duration: int = {"outer": 180, "middle": 180, "inner": 180, "deep": 240, "source": 300}[id]
+	var duration := Catalog.BOSS_AT
 	var maximum: int = {"outer": 800, "middle": 2400, "inner": 6400, "deep": 15000, "source": 32000}[id]
 	if stage_demo:
 		await _show_wave(battle)
@@ -202,23 +202,12 @@ func _test_layer(id: String, stage_demo := false, arrival := "", loot := "") -> 
 	var tiers := drops.map(func(drop: Node) -> int: return drop._item.tier)
 	_expect(tiers.size() == 2 + expected_bonus and tiers.count(base_tier) == 2 and tiers.count(5) == expected_bonus,
 		id + " Boss 正式装备掉落：普通两件及渡劫时恰好一件追加")
-	await create_timer(0.57, false, false, true).timeout
-	_expect(battle._phase == battle.Phase.VICTORY_LOOT and battle._victory_loot_left == 10.0, id + " 锁定胜利后保留十秒拾取")
-	if not loot.is_empty() and not _output.is_empty():
-		await create_timer(0.55).timeout
 	await _capture(loot)
-	for drop: Node in drops:
-		_expect(drop.visible, "地面掉落未自动进包")
-		battle._player.global_position = drop.global_position
-		drop._physics_process(0.18)
-	for stone: Node in battle.get_node("Pickups").get_children():
-		if stone.scene_file_path.ends_with("spirit_stone.tscn") and stone.visible:
-			battle._player.global_position = stone.global_position
-			stone._physics_process(0.2)
 	var amount: int = {"outer": 200, "middle": 400, "inner": 800, "deep": 1600, "source": 3200}[id]
-	_expect(battle._inventory.new_loot().size() == 2 + expected_bonus and battle._spirit_stones == amount, id + " 正式掉落拾取，灵石倍率")
-	battle._physics_process(10.0)
-	_expect(battle._run_won and battle._settlement_saved and _save.has_cleared(id), id + " 拾取结束后正式结算")
+	_expect(battle._inventory.new_loot().size() == 2 + expected_bonus and battle._spirit_stones == amount, id + " 正式 Boss 奖励到账，灵石倍率")
+	_expect(battle._run_won and battle._settlement_saved and _save.has_cleared(id), id + " 当帧正式结算")
+	await create_timer(0.57, true, false, true).timeout
+	_expect(battle._phase == battle.Phase.RESULT, id + " 胜利慢镜之后直接显示结果")
 	if id in ["deep", "source"]:
 		var regular := await _battle(id)
 		var golem: Node = regular._spawn_enemy(regular._golem_pool)
@@ -235,11 +224,11 @@ func _show_wave(battle: Node) -> void:
 	battle._elapsed = 59.99
 	var previous: int = battle._living_enemies.size()
 	battle._physics_process(0.02)
-	_expect(battle._living_enemies.size() == previous + 15 and not battle._hud._wave_notice.visible, "60 秒在实战生成 15 只并结束预警")
+	_expect(battle._living_enemies.size() == previous + 23 and not battle._hud._wave_notice.visible, "60 秒在实战生成 23 只并结束预警")
 	if not _output.is_empty():
 		# 让实际怪物 AI 从 700 圆环走向镜头内，不重摆兽潮位置。
 		battle._elapsed = 63.6
-		battle._hud.set_survival_time(63)
+		battle._hud.set_survival_time(63, Catalog.RUN_SECONDS)
 		Engine.time_scale = 3.0
 		await create_timer(3.6).timeout
 		Engine.time_scale = 1.0
@@ -288,35 +277,24 @@ func _test_boss_stages(battle: Node, boss: DemonLord) -> void:
 	await _capture("06-四阶段弹幕")
 
 
-func _test_loadout_hints(matched := "15-配装金色提示", missing := "") -> void:
+func _test_loadout_hints(matched := "15-暂停进化提示", missing := "") -> void:
 	for id: String in ["sword_storm", "fire", "dash", "wisp", "bell", "shield"]:
 		_expect(_save.learn_skill(id) == OK, "正式领悟 " + id)
 	for i in range(3):
 		_expect(_save.train_passive("focus") == OK, "正式凝神诀，加点 " + str(i + 1))
-	var cave := await _open_cave()
-	cave._loadout = ["sword", "sword_storm", "wisp"]
-	cave._show_preparation()
-	var buttons: Dictionary = cave._loadout_buttons
-	_expect("局内升到 3 级" in buttons.sword.text and "金卡进化为「万剑归宗」" in buttons.sword.text
-		and "搭档「万剑诀」已携带" in buttons.sword.text
-		and buttons.sword.get_theme_stylebox("pressed") == cave._evolution_card, "明确说明御剑术在局内如何进化")
-	_expect("御剑术的进化搭档 · 携带即可，无需升级" in buttons.sword_storm.text
-		and "选金卡" not in buttons.sword_storm.text, "搭档不误标为进化主体")
-	_expect("九幽焚天" in buttons.wisp.text and "「凝神诀」已满级" in buttons.wisp.text, "满级心法标出姓名和进化结果")
-	await process_frame
-	cave._preparation.scroll_vertical = 410
+	var battle := await _battle("outer", ["sword", "sword_storm", "wisp"])
+	var skills: Node = battle._skills
+	skills.apply_upgrade(Skill.SWORD, 4)
+	battle._open_game_menu()
+	_expect("可进化 · 万剑归宗 ← 御剑术·满 + 万剑诀" in battle._game_menu._recipes.text
+		and "九幽焚天 ← 幽冥鬼火·满 + 凝神诀·满" in battle._game_menu._recipes.text, "新暂停界面说明技能搭档及满级心法")
+	if not _output.is_empty():
+		await create_timer(0.35, true, false, true).timeout
 	await _capture(matched)
-	cave._toggle_skill("sword_storm")
-	_expect("进化需同时携带「万剑诀」" in buttons.sword.text and "选金卡" not in buttons.sword.text
-		and not buttons.sword.has_theme_stylebox_override("pressed")
-		and "搭档" not in buttons.sword_storm.text, "取消搭档后去掉金边并指出所缺条件")
+	skills._selected.erase(Skill.SWORD_STORM)
+	battle._game_menu.open(true, skills.slots(), skills.evolution_hints())
+	_expect("可进化 · 万剑归宗" not in battle._game_menu._recipes.text, "局内缺搭档时提示不标为已达成")
 	await _capture(missing)
-	_expect("进化需在洞府点满「锻体诀」" in cave._evolution_requirement(Catalog.EVOLUTIONS.orbs, false, []), "指出缺少的局外心法")
-	cave._loadout = ["bell", "shield", "heal"]
-	cave._refresh_preparation()
-	_expect("玄武降世" in buttons.shield.text and "回春功" in buttons.shield.text
-		and "摄魂铃的进化搭档" in buttons.shield.text, "同一张卡能同时说明进化主体与搭档两个身份")
-	_expect("生生不息" in buttons.heal.text and "任意一门心法已满级" in buttons.heal.text, "任一满级心法的条件读得懂")
 
 
 func _test_evolutions() -> void:
@@ -329,7 +307,7 @@ func _test_evolutions() -> void:
 		var loadout := [id]
 		if rule.has("partner"):
 			loadout.append(rule.partner)
-		if Catalog.first_attack(loadout).is_empty():
+		if not loadout.has("sword"):
 			loadout.append("sword")
 		var test_loadout := loadout.duplicate()
 		if test_loadout.size() < 3 and not test_loadout.has("fire"):
@@ -342,16 +320,18 @@ func _test_evolutions() -> void:
 		skills._passives.clear()
 		var base: int = Catalog.SKILLS.find(id)
 		var gold := {"type": "evolution", "id": base, "rarity": "evolution"}
-		while skills._levels[base] < 2:
+		while skills._levels[base] < 4:
 			skills.apply_upgrade(base)
 		skills._passives = valid_passives.duplicate()
-		_expect(gold not in skills.roll_choices(), id + " 两级不能进化")
+		_expect(gold not in skills.roll_choices(), id + " 四级不能进化")
 		skills.apply_upgrade(base)
 		skills._passives.clear()
-		if rule.has("partner"):
-			skills._loadout.erase(rule.partner)
+		var partner := Catalog.SKILLS.find(rule.get("partner", ""))
+		if partner >= 0:
+			skills._selected.erase(partner)
 		_expect(gold not in skills.roll_choices(), id + " 缺搭档不进化")
-		skills._loadout = test_loadout.duplicate()
+		if partner >= 0:
+			skills._selected.append(partner)
 		skills._passives = valid_passives.duplicate()
 		battle._xp = battle._xp_required
 		battle._show_level_up()
@@ -364,11 +344,12 @@ func _test_evolutions() -> void:
 		var after_pick: Array = skills.roll_choices()
 		_expect(skills._evolved.has(base) and after_pick.all(func(choice: Dictionary) -> bool:
 			return choice.type == "stat" or choice.id != base)
-			and skills._selected.size() == test_loadout.size(), id + " 结果替换不占槽也不重复")
+			and skills._selected.size() == test_loadout.size() - int(partner >= 0), id + " 结果替换正确释放槽位")
 		await _test_effect(battle, id)
 		for selected: int in skills._selected:
 			skills._levels[selected] = skills.CAP
 			skills._evolved[selected] = true
+		skills._learned = []
 		var filled: Array = skills.roll_choices()
 		_expect(filled.size() == 3 and filled.all(func(card: Dictionary) -> bool: return card.type == "stat"), id + " 卡池耗尽补足三张属性卡")
 	var multi := await _battle("outer", ["sword", "sword_storm", "orbs", "ice"])
@@ -395,7 +376,8 @@ func _test_effect(battle: Node, id: String) -> void:
 	match id:
 		"sword":
 			v4.update_blades(0.0, 20, 72.0, 2.4)
-			_expect(wolf._health == 950 and skills._visuals._blades.size() == 8, "万剑八把，实际单剑伤 50")
+			v4.update_blades(0.5, 20, 72.0, 2.4)
+			_expect(wolf._health == 970 and skills._visuals._blades.size() == 12, "万剑十二把，实际周期伤 30")
 			await _capture("17-效果-万剑归宗")
 		"lightning":
 			v4._cast_thunderfire()
@@ -416,23 +398,23 @@ func _test_effect(battle: Node, id: String) -> void:
 			_expect(player.health == 82, "生生不息受击额外回血")
 			skills._heal_left = 0.0
 			skills._physics_process(0.01)
-			_expect(player.health == 98, "生生不息周期回血翻倍")
+			_expect(player.health == 100, "满级生生不息周期回血翻倍")
 		"dash":
 			v4._cast_dash(2)
 			v4.on_dash_step(origin, origin + Vector3.RIGHT * 80)
 			player.take_damage(20)
 			_expect(wolf._health == 865 and player.health == 100 and v4._clocks.dash == 1.5, "瞬影三倍伤害、1.5 秒、途中无敌")
 		"wisp":
-			v4._cast_wisps(2)
-			_expect(v4._wisps.size() == 6, "九幽鬼火六团")
+			v4._update_wisps(0.0, 5)
+			_expect(skills._visuals._wisps.filter(func(node: Node3D): return node.visible).size() == 15, "满级九幽鬼火十五团")
 			await _capture("19-效果-九幽焚天")
-			v4._update_wisps(0.4)
-			_expect(wolf._health == 712, "九幽每团 18 命中＋30 范围伤")
+			v4._update_wisps(0.5, 5)
+			_expect(wolf._health == 982, "九幽原爆伤 30 的 60% 每半秒")
 		"bell":
 			v4._cast_bell(2)
-			_expect(wolf._slow_factor == 0.4 and wolf._slow_left == 3.0 and wolf._dots.bell.amount == 20, "万魂减速与 DOT")
-			wolf._update_statuses(3.0)
-			_expect(wolf._health == 900, "万魂结算基础 40 加三跳 20")
+			_expect(wolf._slow_factor == 0.4 and wolf._slow_left == 3.0 and v4._bell_left == 3.0, "万魂减速与领域")
+			v4._update_bell(3.0)
+			_expect(wolf._health == 888, "万魂结算基础 40 加六跳 12")
 		"shield":
 			player.health = 50
 			v4._cast_shield(2)
@@ -442,7 +424,7 @@ func _test_effect(battle: Node, id: String) -> void:
 
 
 func _test_base_skills() -> void:
-	var battle := await _battle("outer", ["dash", "wisp", "bell", "shield"])
+	var battle := await _battle("outer")
 	var skills: Node = battle._skills
 	var player: Player = battle._player
 	player.stats.configure("qi_refining", {}, {})
@@ -450,18 +432,18 @@ func _test_base_skills() -> void:
 	var wolf: Node = battle._spawn_enemy_at(battle._wolf_pool, origin + Vector3.RIGHT * 72)
 	wolf.set_physics_process(false)
 	wolf._health = 1000
-	for id: int in [Skill.WISP, Skill.BELL, Skill.SHIELD]:
+	for id: int in [Skill.DASH, Skill.WISP, Skill.BELL, Skill.SHIELD]:
 		skills.apply_upgrade(id)
 	var v4: RefCounted = skills._ascension
 	v4.update(0.0, 2.5, skills._levels)
-	_expect(v4._wisps.size() == 1 and player._dash_left == 0.0, "基础鬼火 2.5 秒先触发")
-	v4.update(0.4, 0.5, skills._levels)
-	_expect(wolf._health == 982 and player._dash_left > 0.0 and not player._dash_invincible, "基础鬼火命中 18，基础突进 3 秒")
+	_expect(skills._visuals._wisps[0].visible and player._dash_left == 0.0, "基础鬼火环绕")
+	v4.update(0.5, 0.5, skills._levels)
+	_expect(wolf._health == 989 and player._dash_left > 0.0 and not player._dash_invincible, "基础鬼火跳伤 11，基础突进 3 秒")
 	v4.on_dash_step(origin, origin + Vector3.RIGHT * 90)
 	v4.on_dash_step(origin, origin + Vector3.RIGHT * 95)
-	_expect(wolf._health == 962, "基础突进路径单次 20 伤害")
+	_expect(wolf._health == 969, "基础突进路径单次 20 伤害")
 	v4.update(0.0, 3.0, skills._levels)
-	_expect(wolf._health == 947 and wolf._slow_factor == 0.6 and wolf._slow_left == 2.0, "基础铃铛第六秒伤害和减速")
+	_expect(wolf._health == 954 and wolf._slow_factor == 0.6 and wolf._slow_left == 2.0, "基础铃铛第六秒伤害和减速")
 	v4._clocks.shield = 0.01
 	v4.update(0.0, 0.01, skills._levels)
 	_expect(player.shield == 30 and is_equal_approx(v4._clocks.shield, 20.0), "基础护印 30，间隔 20 秒")
@@ -491,7 +473,7 @@ func _test_legacy() -> void:
 	_expect("version=1" in before and "save_version" not in before, "只读不重写旧档")
 	_expect(_save.save_profile() == OK, "正常保存写入新版")
 	var after := FileAccess.get_file_as_string(SAVE_PATH)
-	_expect("save_version=5" in after and _save._load_profile() == OK and _save._profile == data, "新版格式重读不丢数据")
+	_expect("save_version=6" in after and _save._load_profile() == OK and _save._profile == data, "新版格式重读不丢数据")
 	print("LEGACY: 筑基武器 id=41、7819 灵石、金丹、2 功法点、离火印、锻体诀及通关进度均保留。")
 	if not _output.is_empty():
 		await _open_cave()
@@ -507,9 +489,9 @@ func _test_stress() -> void:
 	battle._skills._levels[Skill.SWORD] = 0
 	battle._player.accepts_damage = false # 固定模拟不因死亡结束；怪物及弹道依然真实运行。
 	var center: Vector3 = battle._player.global_position
-	battle._elapsed = 299.95
-	battle._spawns._next_wave = 300.0
-	battle._spawns._next_golem = 300.0
+	battle._elapsed = 239.95
+	battle._spawns._next_wave = 240.0
+	battle._spawns._next_golem = 240.0
 	battle._physics_process(0.02)
 	battle._physics_process(0.04)
 	var boss := _boss(battle)
@@ -519,7 +501,7 @@ func _test_stress() -> void:
 		var i: int = battle._active_enemy_count
 		var at := center + Vector3(cos(i * TAU / 73), 0, sin(i * TAU / 73)) * (280.0 + i % 4 * 115)
 		battle._spawn_kind_at(SpawnManager.Kind.CROW if i % 2 == 0 else SpawnManager.Kind.WOLF, at)
-	_expect(battle._active_enemy_count == 100 and boss.stage == 4, "五层 300 秒实际兽潮、100 怪及四阶段")
+	_expect(battle._active_enemy_count == 100 and boss.stage == 4, "五层 240 秒实际兽潮、100 怪及四阶段")
 	var shots := {"barrages": 0}
 	boss.action_started.connect(func(action: String): shots.barrages += int(action == "魔焰弹幕"))
 	if not _output.is_empty():
@@ -550,12 +532,16 @@ func _drops(battle: Node) -> Array[Node]:
 	return battle.get_node("Pickups/EquipmentDrops").get_children().filter(func(drop: Node): return drop.visible)
 
 
-func _battle(id: String, loadout: Array = Catalog.DEFAULT_LOADOUT) -> Node:
+func _battle(id: String, test_skills: Array = []) -> Node:
 	var battle := (load(BATTLE) as PackedScene).instantiate()
-	_expect(battle.configure_run(id, loadout), "可配置秘境 " + id)
+	_expect(battle.configure_run(id), "可配置秘境 " + id)
 	await _change(battle)
 	battle.set_physics_process(false)
 	battle._skills.set_physics_process(false)
+	var skills: Node = battle._skills
+	for active: String in test_skills:
+		if active != "sword":
+			skills.apply_upgrade(Catalog.SKILLS.find(active))
 	battle._loot_rng.seed = 4300
 	return battle
 
