@@ -33,7 +33,7 @@ const ABYSSES := {
 		"bonus_drop": {"realm": "tribulation", "tier": 5}},
 }
 const DEFAULT_ABYSS := "outer"
-enum Skill { SWORD, LIGHTNING, ORBS, ICE, HEAL, SWORD_STORM, FIRE, BLINK, DASH, WISP, BELL, SHIELD, MAX_HEALTH }
+enum Skill { SWORD, LIGHTNING, ORBS, ICE, HEAL, SWORD_STORM, FIRE, BLINK, DASH, WISP, BELL, SHIELD }
 const SKILLS := ["sword", "lightning", "orbs", "ice", "heal", "sword_storm", "fire", "blink", "dash", "wisp", "bell", "shield"]
 const STARTER_SKILLS := ["sword", "lightning", "orbs", "ice", "heal"]
 const DEFAULT_LOADOUT := ["sword", "lightning", "orbs", "ice"]

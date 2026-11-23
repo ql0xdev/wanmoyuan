@@ -1,6 +1,8 @@
 extends VBoxContainer
 
 const Equipment = preload("res://scripts/equipment_catalog.gd")
+const Forge = preload("res://scripts/forge_catalog.gd")
+const Tooltip = preload("res://scenes/ui/equipment_tooltip.gd")
 const Look = preload("res://scenes/ui/ui_look.gd")
 const CELL_GAP := 8
 const IDEAL_CELL := 124.0
@@ -8,6 +10,7 @@ const SLOT_INK := {"weapon": Color("#3f787d"), "armor": Color("#8b6944"), "acces
 
 signal wear_requested(id: int, equip: bool)
 signal salvage_requested(id: int)
+signal star_requested(id: int)
 
 enum Mode { STORAGE, BAG, SETTLEMENT }
 
@@ -18,12 +21,13 @@ var _icons := {}
 var _worn := {}
 var _selected := 0
 var _bag_size := 0
+var _iron := 0
+var _rendered := {}
+var _cell_styles := {}
 var _summary: RichTextLabel
-var _detail_title: Label
-var _detail: RichTextLabel
-var _detail_panel: PanelContainer
 var _empty: Label
 var _status: Label
+var _popup: Tooltip
 var _equip: Button
 var _salvage: Button
 var _scroll: ScrollContainer
@@ -53,33 +57,42 @@ func _ready() -> void:
 	_empty = _make_label(20)
 	_empty.text = "点选装备查看属性"
 	_empty.modulate = Look.MUTED
-	_detail_panel = PanelContainer.new()
-	_detail_panel.add_theme_stylebox_override("panel", Look.box(Look.BACKGROUND, Look.BORDER))
-	add_child(_detail_panel)
-	var details := VBoxContainer.new()
-	details.add_theme_constant_override("separation", 8)
-	_detail_panel.add_child(details)
-	_detail_title = Label.new()
-	_detail_title.add_theme_font_size_override("font_size", 24)
-	_detail_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	details.add_child(_detail_title)
-	_detail = _make_rich_text(details, 20)
-	var row := HBoxContainer.new()
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 8)
-	details.add_child(row)
-	_equip = _make_button(row, "穿戴")
-	_equip.pressed.connect(_toggle_equip)
-	_salvage = _make_button(row, "分解")
-	_salvage.pressed.connect(_salvage_selected)
 	_status = _make_label(20)
 	_status.modulate = Look.GOLD
+	visibility_changed.connect(_hide_popup_with_grid)
 
 
-func display(mode: Mode, items: Array, worn: Dictionary, storage_count := 0) -> void:
+func attach_tooltip(host: Control) -> void:
+	_popup = Tooltip.new()
+	host.add_child(_popup)
+	_popup.wear_requested.connect(_toggle_equip)
+	_popup.salvage_requested.connect(_salvage_selected)
+	_popup.star_requested.connect(func() -> void: star_requested.emit(_selected))
+	_popup.dismissed.connect(_reset_selection)
+	_equip = _popup._wear
+	_salvage = _popup._salvage
+
+
+func _hide_popup_with_grid() -> void:
+	if _popup != null and not is_visible_in_tree():
+		_popup.close()
+
+
+func _reset_selection() -> void:
+	if _cells.has(_selected):
+		_style_cell(_selected, false)
+	_selected = 0
+
+
+func display(mode: Mode, items: Array, worn: Dictionary, storage_count := 0, iron := 0) -> void:
+	var stamp := {"mode": mode, "items": items, "worn": worn, "storage": storage_count, "iron": iron}
+	if stamp == _rendered:
+		return
+	_rendered = stamp.duplicate(true)
 	_mode = mode
 	_worn = worn
 	_bag_size = items.size()
+	_iron = iron
 	var sorted := items.duplicate()
 	if mode == Mode.BAG:
 		sorted.append_array(worn.values())
@@ -92,9 +105,13 @@ func display(mode: Mode, items: Array, worn: Dictionary, storage_count := 0) -> 
 	for item: Dictionary in sorted:
 		var id: int = item.id
 		_items[id] = item
-		var button := _make_button(_list, "%s级\n%s·%s" % [
+		var button := Button.new()
+		button.text = "%s级\n%s·%s" % [
 			Equipment.TIERS[item.tier], Equipment.QUALITIES[item.quality], Equipment.SLOTS[item.slot].item,
-		])
+		]
+		if item.get("star", 0) > 0:
+			button.text += "\n★%d" % item.star
+		button.begin_bulk_theme_override()
 		button.add_theme_font_size_override("font_size", 20)
 		button.icon = _icons[item.slot]
 		button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -104,6 +121,9 @@ func display(mode: Mode, items: Array, worn: Dictionary, storage_count := 0) -> 
 			button.add_theme_color_override(state, quality_color)
 		_cells[id] = button
 		_style_cell(id, false)
+		button.end_bulk_theme_override()
+		_list.add_child(button)
+		Look.skin_button(button)
 		if _is_worn(item):
 			button.draw.connect(_draw_worn.bind(button))
 		button.pressed.connect(_select.bind(id))
@@ -112,7 +132,7 @@ func display(mode: Mode, items: Array, worn: Dictionary, storage_count := 0) -> 
 		Mode.STORAGE:
 			_summary.text = "装备库  [color=#56d4dd]%d/%d[/color]" % [items.size(), Equipment.STORAGE_CAPACITY]
 		Mode.BAG:
-			_summary.text = "行囊  [color=#56d4dd]%d/%d[/color]" % [items.size(), Equipment.BAG_CAPACITY]
+			_summary.text = "行囊  [color=#56d4dd]%d/%d[/color]　·　本局玄铁 [color=#56d4dd]%d[/color]" % [items.size(), Equipment.BAG_CAPACITY, _iron]
 		Mode.SETTLEMENT:
 			_summary.text = "还能入库 [color=#56d4dd]%d[/color] 件 · 战利品 [color=#56d4dd]%d[/color] 件" % [Equipment.STORAGE_CAPACITY - storage_count, items.size()]
 	if mode != Mode.SETTLEMENT:
@@ -132,8 +152,17 @@ func display(mode: Mode, items: Array, worn: Dictionary, storage_count := 0) -> 
 		show_status("行囊已满，新装备将自动分解。")
 	else:
 		show_status("")
-	_select(_selected if _items.has(_selected) else 0)
 	_fit_grid()
+	if _popup != null and _popup.visible:
+		if _items.has(_selected):
+			_refresh_open_popup.call_deferred()
+		else:
+			_popup.close()
+
+
+func _refresh_open_popup() -> void:
+	if _popup.visible and is_visible_in_tree() and _items.has(_selected):
+		_select(_selected)
 
 
 func _fit_grid() -> void:
@@ -147,14 +176,18 @@ func _fit_grid() -> void:
 
 
 func _style_cell(id: int, selected: bool) -> void:
-	var color: Color = Equipment.COLORS[_items[id].quality]
+	var quality: int = _items[id].quality
+	var key := quality * 2 + int(selected)
 	var button := _cells[id]
-	var fill := Look.PANEL.lerp(color, 0.16 if selected else 0.04)
-	button.add_theme_stylebox_override("normal", Look.box(fill, color, 2 if selected else 1, 8, 4))
-	button.add_theme_stylebox_override("hover", Look.box(Look.PANEL.lerp(color, 0.22), color, 2, 8, 4))
-	var pressed := Look.box(Look.PANEL.lerp(color, 0.30), color, 2, 8, 4)
-	button.add_theme_stylebox_override("pressed", pressed)
-	button.add_theme_stylebox_override("hover_pressed", pressed)
+	if not _cell_styles.has(key):
+		var color: Color = Equipment.COLORS[quality]
+		var fill := Look.PANEL.lerp(color, 0.16 if selected else 0.04)
+		var pressed := Look.box(Look.PANEL.lerp(color, 0.30), color, 2, 8, 4)
+		_cell_styles[key] = {"normal": Look.box(fill, color, 2 if selected else 1, 8, 4),
+			"hover": Look.box(Look.PANEL.lerp(color, 0.22), color, 2, 8, 4),
+			"pressed": pressed, "hover_pressed": pressed}
+	for state: String in _cell_styles[key]:
+		button.add_theme_stylebox_override(state, _cell_styles[key][state])
 
 
 func _draw_worn(button: Button) -> void:
@@ -172,21 +205,35 @@ func _select(id: int) -> void:
 		_style_cell(_selected, false)
 	_selected = id
 	var item: Dictionary = _items.get(id, {})
-	_empty.visible = item.is_empty()
-	_detail_panel.visible = not item.is_empty()
-	if not item.is_empty():
-		_style_cell(id, true)
-		_detail_title.text = Equipment.title(item)
-		_detail_title.add_theme_color_override("font_color", Equipment.COLORS[item.quality])
-		_detail.text = Equipment.describe(item)
-	else:
-		_detail.text = ""
-	_equip.visible = _mode != Mode.SETTLEMENT
-	_equip.disabled = item.is_empty() or (_mode == Mode.BAG and _is_worn(item) and _bag_size >= Equipment.BAG_CAPACITY)
-	_equip.text = "卸下" if _is_worn(item) else "穿戴"
-	_salvage.visible = _mode != Mode.BAG
-	_salvage.disabled = item.is_empty()
-	_salvage.text = "分解  +%d 灵石" % Equipment.SALVAGE[item.quality] if not item.is_empty() else "分解"
+	if item.is_empty():
+		_popup.close()
+		return
+	_style_cell(id, true)
+	var button: Button = _cells[id]
+	var anchor: Rect2 = button.get_global_transform_with_canvas() * Rect2(Vector2.ZERO, button.size)
+	_popup.inspect(item, _worn.get(item.slot, {}), anchor, actions_for(item))
+
+
+func actions_for(item: Dictionary) -> Dictionary:
+	var wearing := _is_worn(item)
+	var cost := Forge.star_cost(item)
+	var count := star_candidates(item).size()
+	var can_manage: bool = _mode == Mode.STORAGE or (_mode == Mode.BAG and item.id < 0)
+	var hint := Forge.star_hint(cost, _iron, count) if can_manage else ("请回洞府管理原有装备。" if _mode == Mode.BAG else "")
+	return {
+		"worn": wearing,
+		"wear": _mode != Mode.SETTLEMENT and not (_mode == Mode.BAG and wearing and _bag_size >= Equipment.BAG_CAPACITY),
+		"salvage": can_manage or _mode == Mode.SETTLEMENT,
+		"star": can_manage and Forge.can_star(cost, _iron, count),
+		"hint": hint,
+	}
+
+
+func star_candidates(item: Dictionary) -> Array:
+	var items := _items.values()
+	if _mode == Mode.BAG:
+		items = items.filter(func(candidate: Dictionary) -> bool: return candidate.id < 0)
+	return Forge.sacrifices(item, items, _worn)
 
 
 func _is_worn(item: Dictionary) -> bool:
@@ -220,13 +267,3 @@ func _make_rich_text(parent: Control, font_size: int) -> RichTextLabel:
 	label.add_theme_font_size_override("normal_font_size", font_size)
 	parent.add_child(label)
 	return label
-
-
-func _make_button(parent: Control, title: String) -> Button:
-	var button := Button.new()
-	button.custom_minimum_size.y = 48
-	button.add_theme_font_size_override("font_size", 23)
-	button.text = title
-	parent.add_child(button)
-	Look.skin_button(button)
-	return button

@@ -75,7 +75,7 @@ func _input(event: InputEvent) -> void:
 
 func _button_at(point: Vector2) -> Control:
 	for button in reserved_buttons:
-		if not button.is_visible_in_tree():
+		if not button.is_visible_in_tree() or button.mouse_filter == Control.MOUSE_FILTER_IGNORE:
 			continue
 		var local_point := button.get_global_transform_with_canvas().affine_inverse() * point
 		if Rect2(Vector2.ZERO, button.size).has_point(local_point):

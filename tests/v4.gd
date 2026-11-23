@@ -141,7 +141,7 @@ func _test_campaign() -> void:
 	_expect(_save.skill_points() == 15 and cave._breakthrough.disabled and "渡劫" in cave._breakthrough.text, "渡劫到顶，五次共 15 点")
 	await _test_layer("source", false, "", "14-五层额外渡劫装")
 	var loaded := ConfigFile.new()
-	_expect(loaded.load(SAVE_PATH) == OK and loaded.get_value("save", "save_version", 0) == 4, "存档 schema 为 4")
+	_expect(loaded.load(SAVE_PATH) == OK and loaded.get_value("save", "save_version", 0) == 5, "存档 schema 为 5")
 	var copy := _save.get_script().new() as Node
 	_expect(copy._load_profile() == OK and copy.realm() == "tribulation" and copy.skill_points() == 15 and copy.storage() == _save.storage(), "V4 高阶掉装和总点数可重新读取")
 	copy.free()
@@ -341,7 +341,7 @@ func _test_evolutions() -> void:
 		var skills: Node = battle._skills
 		skills._passives.clear()
 		var base: int = Catalog.SKILLS.find(id)
-		var gold: int = skills.EVOLUTION_START + base
+		var gold := {"type": "evolution", "id": base, "rarity": "evolution"}
 		while skills._levels[base] < 2:
 			skills.apply_upgrade(base)
 		skills._passives = valid_passives.duplicate()
@@ -361,13 +361,16 @@ func _test_evolutions() -> void:
 		if id in ["sword", "orbs", "wisp"]:
 			await _capture("16-进化卡-" + str(rule.name))
 		card.pressed.emit()
-		_expect(skills._evolved.has(base) and gold not in skills.roll_choices() and base not in skills.roll_choices()
+		var after_pick: Array = skills.roll_choices()
+		_expect(skills._evolved.has(base) and after_pick.all(func(choice: Dictionary) -> bool:
+			return choice.type == "stat" or choice.id != base)
 			and skills._selected.size() == test_loadout.size(), id + " 结果替换不占槽也不重复")
 		await _test_effect(battle, id)
 		for selected: int in skills._selected:
 			skills._levels[selected] = skills.CAP
 			skills._evolved[selected] = true
-		_expect(skills.roll_choices() == [Skill.MAX_HEALTH], id + " 卡池耗尽有保底")
+		var filled: Array = skills.roll_choices()
+		_expect(filled.size() == 3 and filled.all(func(card: Dictionary) -> bool: return card.type == "stat"), id + " 卡池耗尽补足三张属性卡")
 	var multi := await _battle("outer", ["sword", "sword_storm", "orbs", "ice"])
 	var pool: Node = multi._skills
 	pool._passives = valid_passives.duplicate()
@@ -375,9 +378,9 @@ func _test_evolutions() -> void:
 		pool._levels[id] = pool.CAP
 	var seen := {}
 	for i in range(60):
-		var choices: Array[int] = pool.roll_choices()
-		_expect(choices.filter(pool.is_evolution_card).size() == 1, "同时满足也只出一张进化")
-		seen[choices[0]] = true
+		var choices: Array = pool.roll_choices()
+		_expect(choices.filter(func(card: Dictionary) -> bool: return card.type == "evolution").size() == 1, "同时满足也只出一张进化")
+		seen[choices[0].id] = true
 	_expect(seen.size() == 3, "三条同时满足时随机抽取")
 
 
@@ -478,13 +481,17 @@ func _test_legacy() -> void:
 	}
 	for key: String in data:
 		fixture.set_value("profile", key, data[key])
-	_expect(fixture.save(SAVE_PATH) == OK and _save._load_profile() == OK and _save._profile == data, "旧档八字段完整载入")
+	_expect(fixture.save(SAVE_PATH) == OK and _save._load_profile() == OK, "旧档完整载入")
+	data["iron"] = 0
+	data["forge_count"] = 0
+	data.equipment_storage[0]["star"] = 0
+	_expect(_save._profile == data, "仅补默认字段")
 	_expect(not _save.is_unlocked("deep") and not _save.learned_skills().has("wisp") and not _save.has_cleared("source"), "新增内容默认未达成")
 	var before := FileAccess.get_file_as_string(SAVE_PATH)
 	_expect("version=1" in before and "save_version" not in before, "只读不重写旧档")
 	_expect(_save.save_profile() == OK, "正常保存写入新版")
 	var after := FileAccess.get_file_as_string(SAVE_PATH)
-	_expect("save_version=4" in after and _save._load_profile() == OK and _save._profile == data, "新版格式重读不丢数据")
+	_expect("save_version=5" in after and _save._load_profile() == OK and _save._profile == data, "新版格式重读不丢数据")
 	print("LEGACY: 筑基武器 id=41、7819 灵石、金丹、2 功法点、离火印、锻体诀及通关进度均保留。")
 	if not _output.is_empty():
 		await _open_cave()

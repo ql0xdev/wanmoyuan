@@ -18,14 +18,14 @@ func _ready() -> void:
 		_buttons.append(card)
 
 
-func open(choices: PackedStringArray, gold_index := -1) -> void:
+func open(choices: PackedStringArray, gold := PackedInt32Array()) -> void:
 	for i in range(_buttons.size()):
 		var card := _buttons[i]
 		card.visible = i < choices.size()
 		if card.visible:
 			card.text = "%d\n%s" % [i + 1, choices[i]]
 			card.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			if i == gold_index:
+			if i in gold:
 				card.add_theme_stylebox_override("normal", _gold)
 				card.add_theme_stylebox_override("hover", _gold_hover)
 				card.add_theme_stylebox_override("pressed", _gold_hover)

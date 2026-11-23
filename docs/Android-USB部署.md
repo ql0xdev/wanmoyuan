@@ -10,6 +10,8 @@
 
 V4.0.1 本地调试 APK：`android/wanmoyuan-v4.0.1-debug.apk`（versionCode 11）。如需手动安装，可在项目根目录运行 `adb install -r .\android\wanmoyuan-v4.0.1-debug.apk`。只有签名一致才能覆盖安装；不要为解决签名冲突直接卸载已有版本，以免清除本地存档。
 
+V4.1 本地调试 APK：`android/wanmoyuan-v4.1-debug.apk`（versionCode 12，Android 7.0+）。可用 `adb install -r .\android\wanmoyuan-v4.1-debug.apk` 覆盖安装同签名版本。旧档会在首次正常保存时迁移到 `save_version=5`；如需以后回退旧版本，先另行备份旧档。
+
 ## 如果需要 Gradle 构建
 
 USB 预设默认关闭 **Use Gradle Build**，直接使用 Godot 预编译模板。Gradle Build Template 已安装在 `android/build`；`android/` 是生成目录，新副本可通过 **项目 → 安装 Android 构建模板** 重新生成。

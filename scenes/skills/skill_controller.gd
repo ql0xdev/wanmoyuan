@@ -7,6 +7,7 @@ const BattleCamera = preload("res://scenes/world/battle_camera.gd")
 const SkillVisuals = preload("res://scenes/skills/skill_visuals.gd")
 const AscensionSkills = preload("res://scenes/skills/ascension_skills.gd")
 const Catalog = preload("res://scripts/cultivation_catalog.gd")
+const Upgrades = preload("res://scripts/upgrade_catalog.gd")
 const Skill = Catalog.Skill
 
 signal swords_cast
@@ -19,8 +20,6 @@ const ICE_SLOW_PERCENT := [30, 40, 50]
 const HEAL_INTERVAL := [5.0, 4.0, 3.0]
 const HEAL_AMOUNT := [3, 5, 8]
 const CAP := 3
-const HEALTH_BONUS := 20
-const EVOLUTION_START := Skill.MAX_HEALTH + 1
 
 const SWORD_INTERVAL := 1.0
 const LIGHTNING_INTERVAL := 3.0
@@ -47,6 +46,7 @@ var _selected: Array[int] = []
 var _loadout: Array = []
 var _passives: Dictionary
 var _evolved := {}
+var _upgrade_rng := RandomNumberGenerator.new()
 var _ascension: AscensionSkills
 var _player: Player
 var _camera: BattleCamera
@@ -90,30 +90,35 @@ func configure(player: Player, enemies: Array[Enemy], launch_sword: Callable, ca
 		_player.hit.connect(_try_blink)
 
 
-func roll_choices() -> Array[int]:
-	var available: Array[int] = []
+func roll_choices() -> Array[Dictionary]:
+	var available: Array[Dictionary] = []
 	var evolutions: Array[int] = []
 	for skill in _selected:
 		if _levels[skill] < CAP:
-			available.append(skill)
+			available.append({"type": "skill", "id": skill})
 		elif _can_evolve(skill):
-			evolutions.append(skill + EVOLUTION_START)
-	if available.is_empty() and evolutions.is_empty():
-		return [Skill.MAX_HEALTH]
-	available.shuffle()
+			evolutions.append(skill)
+	for stat: String in Upgrades.STAT_CARDS:
+		available.append({"type": "stat", "id": stat})
+	var result: Array[Dictionary] = []
 	if not evolutions.is_empty():
-		available.push_front(evolutions.pick_random())
-	available.resize(mini(available.size(), 3))
-	return available
+		result.append({"type": "evolution", "id": evolutions[_upgrade_rng.randi_range(0, evolutions.size() - 1)], "rarity": "evolution"})
+	while result.size() < 3:
+		var card: Dictionary = available.pop_at(_upgrade_rng.randi_range(0, available.size() - 1))
+		card["rarity"] = "rare" if _upgrade_rng.randi_range(1, 100) <= Upgrades.RARE_PERCENT else "normal"
+		result.append(card)
+	return result
 
 
-func card_text(skill: int) -> String:
-	if skill == Skill.MAX_HEALTH:
-		return "+%d 生命上限" % HEALTH_BONUS
-	if is_evolution_card(skill):
-		var evolution: Dictionary = Catalog.EVOLUTIONS[Catalog.SKILLS[skill - EVOLUTION_START]]
+func card_text(card: Dictionary) -> String:
+	var rare: bool = card.rarity == "rare"
+	if card.type == "stat":
+		return Upgrades.stat_card_text(card.id, rare)
+	var skill: int = card.id
+	if card.type == "evolution":
+		var evolution: Dictionary = Catalog.EVOLUTIONS[Catalog.SKILLS[skill]]
 		return "进化 · %s\n\n%s" % [evolution.name, evolution.card]
-	var next_level := _levels[skill] + 1
+	var next_level := mini(CAP, _levels[skill] + (2 if rare else 1))
 	var tier := next_level - 1
 	var effect := ""
 	match skill:
@@ -135,36 +140,42 @@ func card_text(skill: int) -> String:
 			effect = "受击时 %d%%\n概率瞬移 300" % BLINK_CHANCE_PERCENT[tier]
 		_:
 			effect = _ascension.card_detail(Catalog.SKILLS[skill], tier)
-	var action := "习得" if next_level == 1 else "升级"
-	return "%s · %s\nLv%d\n\n%s" % [action, Catalog.SKILL_DATA[Catalog.SKILLS[skill]].name, next_level, effect]
+	var action := "珍稀" if rare else ("习得" if next_level == 1 else "升级")
+	var progression := "Lv%d → Lv%d" % [_levels[skill], next_level] if rare else "Lv%d" % next_level
+	return "%s · %s\n%s\n\n%s" % [action, Catalog.SKILL_DATA[Catalog.SKILLS[skill]].name, progression, effect]
 
 
-func apply_upgrade(skill: int) -> void:
-	if skill == Skill.MAX_HEALTH:
-		_player.increase_max_health(HEALTH_BONUS)
-		return
-	if is_evolution_card(skill):
-		var base := skill - EVOLUTION_START
-		if _can_evolve(base):
-			_evolved[base] = true
-			_ascension.evolve(Catalog.SKILLS[base])
-			if base == Skill.ICE:
-				for enemy in _enemies:
-					enemy.speed_multiplier = 1.0
-				_visuals.hide_ice()
-			if base == Skill.ORBS:
-				_orb_offsets.clear()
-				_visuals.update_orbs(_player.global_position, _orb_offsets)
-		return
+func apply_card(card: Dictionary) -> void:
+	var power := 2 if card.rarity == "rare" else 1
+	match card.type:
+		"skill": apply_upgrade(card.id, power)
+		"evolution": _apply_evolution(card.id)
+		"stat":
+			_player.stats.add_run_stat(card.id, Upgrades.STAT_CARDS[card.id].amount * power)
+			if card.id == "health_flat":
+				_player.refresh_equipment()
+
+
+func apply_upgrade(skill: int, steps := 1) -> void:
 	if not _selected.has(skill) or _levels[skill] >= CAP:
 		return
-	_levels[skill] += 1
+	_levels[skill] = mini(CAP, _levels[skill] + steps)
 	if skill == Skill.HEAL:
 		_heal_left = HEAL_INTERVAL[_levels[skill] - 1]
 
 
-func is_evolution_card(choice: int) -> bool:
-	return choice >= EVOLUTION_START
+func _apply_evolution(skill: int) -> void:
+	if not _can_evolve(skill):
+		return
+	_evolved[skill] = true
+	_ascension.evolve(Catalog.SKILLS[skill])
+	if skill == Skill.ICE:
+		for enemy in _enemies:
+			enemy.speed_multiplier = 1.0
+		_visuals.hide_ice()
+	if skill == Skill.ORBS:
+		_orb_offsets.clear()
+		_visuals.update_orbs(_player.global_position, _orb_offsets)
 
 
 func _can_evolve(skill: int) -> bool:

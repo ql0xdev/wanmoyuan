@@ -20,7 +20,6 @@ const DEATH_TINT := Color("#562a26")
 var _hit_material := StandardMaterial3D.new()
 
 var stats := StatsManager.new()
-var _run_health_bonus := 0
 var max_health := StatsManager.BASE_HEALTH
 var health := max_health
 var accepts_damage := true
@@ -156,13 +155,8 @@ func heal(amount: int) -> void:
 		health_changed.emit(health, max_health)
 
 
-func increase_max_health(amount: int) -> void:
-	_run_health_bonus += amount
-	refresh_equipment()
-
-
 func refresh_equipment(refill := false) -> void:
-	max_health = stats.max_health(_run_health_bonus)
+	max_health = stats.max_health()
 	if is_alive():
 		health = max_health if refill else mini(health, max_health)
 	health_changed.emit(health, max_health)

@@ -24,15 +24,15 @@ func open(won: bool, seconds: int, kills: int, level: int, retreated := false) -
 	show()
 
 
-func show_settlement(error: Error, stones: int, total: int, loot_count: int) -> void:
+func show_settlement(error: Error, stones: int, total: int, loot_count: int, iron := 0) -> void:
 	if error == OK:
-		_settlement.text = "本局带出  +%d 灵石 · %d 件装备\n洞府灵石  %d" % [stones, loot_count, total]
+		_settlement.text = "本局带出  +%d 灵石 · +%d 玄铁 · %d 件装备\n洞府灵石  %d" % [stones, iron, loot_count, total]
 		_settlement.modulate = Look.CYAN
 	elif error == ERR_OUT_OF_MEMORY:
 		_settlement.text = "装备库空间不足\n请先分解多出的战利品"
 		_settlement.modulate = Look.MUTED
 	else:
-		_settlement.text = "存档失败 · %d 灵石尚未带出\n请重试保存" % stones
+		_settlement.text = "存档失败 · %d 灵石与 %d 玄铁尚未带出\n请重试保存" % [stones, iron]
 		_settlement.modulate = Look.MUTED
 	_retry.visible = error != OK and error != ERR_OUT_OF_MEMORY
 	_organize.visible = error == ERR_OUT_OF_MEMORY

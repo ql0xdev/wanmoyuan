@@ -103,7 +103,7 @@ func _test_play(save: Node) -> void:
 	await scene_changed
 	var cave := current_scene
 	_expect(save.has_profile() and FileAccess.file_exists(SAVE_PATH), "首次进入洞府立即存档")
-	_expect(cave._tabs.get_tab_count() == 3 and cave._tabs.get_tab_title(1) == "功法", "洞府三页签")
+	_expect(cave._tabs.get_tab_count() == 4 and cave._tabs.get_tab_title(1) == "功法" and cave._tabs.get_tab_title(3) == "熔炉", "洞府四页签")
 	_expect(cave._breakthrough.disabled and save.breakthrough() != OK, "灵石不足不能突破")
 	_button(CAVE_CONTENT + "Enter").pressed.emit()
 	_expect(cave._abyss_buttons.middle.disabled and cave._abyss_buttons.inner.disabled, "高层秘境初始锁定")
@@ -171,7 +171,7 @@ func _test_play(save: Node) -> void:
 	_button(RESULT_CONTENT + "Cave").pressed.emit()
 	await scene_changed
 	cave = current_scene
-	_expect(not paused and cave._stones.text.ends_with("520"), "回洞府显示新余额")
+	_expect(not paused and "灵石 520" in cave._stones.text, "回洞府显示新余额")
 	cave._breakthrough.pressed.emit()
 	_expect(save.realm() == "foundation" and save.spirit_stones() == 20 and save.skill_points() == 3
 		and cave._flash.visible and cave._notice.text == "突破·筑基", "突破、扣费、送点、金光")
@@ -270,13 +270,15 @@ func _test_storm_and_card_pool(battle: Node) -> void:
 	skills._launch_sword = initial_launch
 	_expect(launches.size() == 8 and launches[0][1] == 37 and launches[0][0].dot(launches[4][0]) < -0.99, "万剑诀发射八剑并走统一伤害")
 	var choices: Array = skills.roll_choices()
-	_expect(choices.size() == 2 and choices.has(Skill.SWORD_STORM) and choices.has(Skill.HEAL), "卡池排除未携带功法")
+	_expect(choices.size() == 3 and choices.all(func(card: Dictionary) -> bool:
+		return card.type == "stat" or (card.type == "skill" and card.id in [Skill.SWORD_STORM, Skill.HEAL])), "卡池排除未携带功法")
 	for i in range(3):
 		skills.apply_upgrade(Skill.SWORD_STORM)
 		skills.apply_upgrade(Skill.HEAL)
-	_expect(skills.roll_choices() == [Skill.MAX_HEALTH], "全满级只出气血保底")
-	skills.apply_upgrade(Skill.MAX_HEALTH)
-	_expect(battle._player.max_health == 250, "保底气血 +20")
+	var filled: Array = skills.roll_choices()
+	_expect(filled.size() == 3 and filled.all(func(card: Dictionary) -> bool: return card.type == "stat"), "全满级三张属性卡")
+	skills.apply_card({"type": "stat", "id": "health_flat", "rarity": "normal"})
+	_expect(battle._player.max_health == 250, "气血卡 +20")
 
 
 func _test_retreat(save: Node) -> void:
@@ -340,7 +342,7 @@ func _test_retreat(save: Node) -> void:
 		"撤离结算立即写盘")
 	_button(RESULT_CONTENT + "Cave").pressed.emit()
 	await scene_changed
-	_expect(not paused and current_scene._stones.text.ends_with("140"), "撤离后可返回洞府")
+	_expect(not paused and "灵石 140" in current_scene._stones.text, "撤离后可返回洞府")
 
 
 func _test_fire_and_blink(battle: Node) -> void:
@@ -469,7 +471,7 @@ func _test_reload(save: Node) -> void:
 	_expect(_button(START_BUTTON).text == "继续修行", "继续修行入口")
 	_button(START_BUTTON).pressed.emit()
 	await scene_changed
-	_expect(current_scene._stones.text.ends_with("830"), "恢复洞府余额")
+	_expect("灵石 830" in current_scene._stones.text, "恢复洞府余额")
 
 
 func _test_exit(save: Node) -> void:

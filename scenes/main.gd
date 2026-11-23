@@ -20,9 +20,13 @@ const ResultMenu = preload("res://scenes/ui/result_menu.gd")
 const JoystickControl = preload("res://scenes/ui/virtual_joystick.gd")
 const ShopMenu = preload("res://scenes/ui/shop_menu.gd")
 const GearMenu = preload("res://scenes/ui/equipment_menu.gd")
+const GearTooltip = preload("res://scenes/ui/equipment_tooltip.gd")
 const GameMenu = preload("res://scenes/ui/game_menu.gd")
 const Cultivation = preload("res://scripts/cultivation_catalog.gd")
 const Equipment = preload("res://scripts/equipment_catalog.gd")
+const Forge = preload("res://scripts/forge_catalog.gd")
+const SacrificePicker = preload("res://scenes/ui/forge_sacrifice.gd")
+const ForgeFlash = preload("res://scenes/ui/forge_flash.gd")
 const RunInventory = preload("res://scripts/run_inventory.gd")
 const Pills = preload("res://scripts/pill_catalog.gd")
 const BattleEffects = preload("res://scenes/effects/battle_effects.gd")
@@ -88,8 +92,13 @@ var _level := 1
 var _xp := 0
 var _xp_required := 5
 var _spirit_stones := 0
+var _iron := 0
 var _inventory := RunInventory.new()
-var _choices: Array[int] = []
+var _loot_tooltip: GearTooltip
+var _star_picker: SacrificePicker
+var _forge_flash: ForgeFlash
+var _star_id := 0
+var _choices: Array[Dictionary] = []
 var _run_won := false
 var _settlement_saved := false
 var _settlement_error: Error = OK
@@ -132,7 +141,7 @@ func _ready() -> void:
 	_ground.set_abyss_tint(_abyss.color)
 	_effects.configure(_camera.presentation, $DeathBursts)
 	_skills.configure(_player, _living_enemies, _launch_sword, _camera, _loadout, SaveManager.passive_levels())
-	_joystick.reserved_buttons.assign([_hud.shop_button, _hud.bag_button, _hud.menu_button])
+	_joystick.reserved_buttons.assign([_hud.shop_button, _hud.bag_button, _hud.menu_button, _hud._loot_notice])
 	_joystick.reserved_button_tapped.connect(_on_battle_button_tapped)
 	_hud.shop_button.pressed.connect(_open_shop)
 	_hud.bag_button.pressed.connect(_open_bag)
@@ -142,8 +151,21 @@ func _ready() -> void:
 	_shop_menu.close_requested.connect(_close_shop)
 	_shop_menu.purchase_requested.connect(_purchase_pill)
 	_gear_overlay.get_node("Content/Close").pressed.connect(_close_gear)
+	_gear_menu.attach_tooltip($TouchUI/SafeArea)
+	_gear_menu._popup.process_mode = Node.PROCESS_MODE_ALWAYS
 	_gear_menu.wear_requested.connect(_change_run_equipment)
 	_gear_menu.salvage_requested.connect(_salvage_loot)
+	_gear_menu.star_requested.connect(_open_run_star)
+	_loot_tooltip = GearTooltip.new()
+	$TouchUI/SafeArea.add_child(_loot_tooltip)
+	_loot_tooltip.dismissed.connect(_resume_after_loot)
+	_loot_tooltip.wear_requested.connect(_wear_from_loot)
+	_star_picker = SacrificePicker.new()
+	$TouchUI/SafeArea.add_child(_star_picker)
+	_star_picker.confirmed.connect(_confirm_run_star)
+	_forge_flash = ForgeFlash.new()
+	$TouchUI/SafeArea.add_child(_forge_flash)
+	_hud._loot_notice.pressed.connect(_inspect_loot)
 	_skills.swords_cast.connect(_audio.play_cue.bind(BattleAudio.Cue.SWORD))
 	_skills.lightning_cast.connect(_audio.play_cue.bind(BattleAudio.Cue.LIGHTNING))
 	_player.hit.connect(_audio.play_cue.bind(BattleAudio.Cue.HIT))
@@ -438,10 +460,11 @@ func _on_equipment_collected(pickup: EquipmentPickup, item: Dictionary) -> void:
 	var stone_value := _inventory.collect(item)
 	if stone_value > 0:
 		_spirit_stones += stone_value
+		_iron += Forge.IRON_SALVAGE[item.quality]
 		_hud.set_spirit_stones(_spirit_stones)
-		_hud.show_loot("行囊已满 · 自动分解 +%d 灵石" % stone_value, Color("#ffda91"))
+		_hud.show_loot("行囊已满 · 获得 " + Forge.salvage_text(item.quality), Look.GOLD)
 	else:
-		_hud.show_loot("获得 %s" % pickup.display_name, pickup.quality_color)
+		_hud.show_loot("获得 %s · 点此查看" % pickup.display_name, pickup.quality_color, item.id)
 
 
 func _on_battle_button_tapped(button: Control) -> void:
@@ -451,6 +474,44 @@ func _on_battle_button_tapped(button: Control) -> void:
 		_open_bag()
 	elif button == _hud.menu_button:
 		_open_game_menu()
+	elif button == _hud._loot_notice:
+		_inspect_loot()
+
+
+func _inspect_loot() -> void:
+	if get_tree().paused or _phase not in [Phase.BATTLE, Phase.VICTORY_LOOT]:
+		return
+	var item := _inventory.find(_hud.loot_item_id)
+	if item.is_empty():
+		return
+	_joystick.reset()
+	get_tree().paused = true
+	_refresh_loot_tooltip(item)
+
+
+func _refresh_loot_tooltip(item: Dictionary) -> void:
+	var button: Button = _hud._loot_notice
+	var anchor: Rect2 = button.get_global_transform_with_canvas() * Rect2(Vector2.ZERO, button.size)
+	var wearing: bool = _inventory.worn.get(item.slot, {}).get("id", 0) == item.id
+	_loot_tooltip.inspect(item, _inventory.worn.get(item.slot, {}), anchor, {
+		"wear": _phase == Phase.BATTLE and not (wearing and _inventory.bag.size() >= Equipment.BAG_CAPACITY),
+		"worn": wearing, "hint": "战斗中可穿戴；其余操作请在行囊中进行。" if _phase == Phase.BATTLE else "安全拾取期间仅可查看。",
+	})
+
+
+func _wear_from_loot() -> void:
+	var item := _inventory.find(_hud.loot_item_id)
+	if _phase == Phase.BATTLE and not item.is_empty():
+		var wearing: bool = _inventory.worn.get(item.slot, {}).get("id", 0) == item.id
+		if _apply_run_equipment(item.id, not wearing):
+			_refresh_loot_tooltip(item)
+
+
+func _resume_after_loot() -> void:
+	if _phase == Phase.BATTLE:
+		_resume_battle()
+	elif _phase == Phase.VICTORY_LOOT:
+		get_tree().paused = false
 
 
 func _open_game_menu() -> void:
@@ -507,7 +568,7 @@ func _open_bag() -> void:
 		return
 	_joystick.reset()
 	get_tree().paused = true
-	_gear_menu.display(GearMenu.Mode.BAG, _inventory.bag, _inventory.worn)
+	_refresh_bag()
 	_gear_overlay.show()
 
 
@@ -525,11 +586,50 @@ func _close_gear() -> void:
 func _change_run_equipment(id: int, equip: bool) -> void:
 	if _phase != Phase.BATTLE or not _gear_overlay.visible:
 		return
+	if _apply_run_equipment(id, equip):
+		_refresh_bag()
+
+
+func _refresh_bag() -> void:
+	_gear_menu.display(GearMenu.Mode.BAG, _inventory.bag, _inventory.worn, 0, _iron)
+
+
+func _open_run_star(id: int) -> void:
+	if _phase != Phase.BATTLE or not _gear_overlay.visible or id >= 0:
+		return
+	var item := _inventory.find(id)
+	if item.is_empty():
+		return
+	var cost := Forge.star_cost(item)
+	var candidates := _gear_menu.star_candidates(item)
+	if Forge.can_star(cost, _iron, candidates.size()):
+		_star_id = id
+		_star_picker.open(item, candidates, cost)
+
+
+func _confirm_run_star(ids: Array) -> void:
+	if _phase != Phase.BATTLE or not _gear_overlay.visible:
+		return
+	var item := _inventory.find(_star_id)
+	if item.is_empty():
+		return
+	var cost := Forge.star_cost(item)
+	if not _inventory.star_equipment(_star_id, ids, _iron):
+		_gear_menu._popup.show_status("升星失败，材料未扣除。")
+		return
+	_iron -= cost.x
+	_player.stats.rebuild_equipment(_inventory.worn)
+	_player.refresh_equipment()
+	_refresh_bag()
+	_forge_flash.flash("升星成功")
+
+
+func _apply_run_equipment(id: int, equip: bool) -> bool:
 	var changed := _inventory.equip(id) if equip else _inventory.unequip(id)
 	if changed:
 		_player.stats.rebuild_equipment(_inventory.worn)
 		_player.refresh_equipment()
-		_gear_menu.display(GearMenu.Mode.BAG, _inventory.bag, _inventory.worn)
+	return changed
 
 
 func _organize_loot() -> void:
@@ -541,34 +641,44 @@ func _organize_loot() -> void:
 
 
 func _salvage_loot(id: int) -> void:
-	if _phase != Phase.RESULT or not _gear_overlay.visible or _settlement_error != ERR_OUT_OF_MEMORY:
+	if not _gear_overlay.visible or not (_phase == Phase.BATTLE or (_phase == Phase.RESULT and _settlement_error == ERR_OUT_OF_MEMORY)):
+		return
+	var item := _inventory.find(id)
+	if id >= 0 or item.is_empty():
 		return
 	var amount := _inventory.salvage(id)
 	if amount > 0:
 		_spirit_stones += amount
-		_gear_menu.display(GearMenu.Mode.SETTLEMENT, _inventory.new_loot(), {}, SaveManager.equipment_count())
-		_gear_menu.show_status("已分解 +%d 灵石；关闭后结算。" % amount)
+		_iron += Forge.IRON_SALVAGE[item.quality]
+		if _phase == Phase.BATTLE:
+			_player.stats.rebuild_equipment(_inventory.worn)
+			_player.refresh_equipment()
+			_hud.set_spirit_stones(_spirit_stones)
+			_refresh_bag()
+		else:
+			_gear_menu.display(GearMenu.Mode.SETTLEMENT, _inventory.new_loot(), {}, SaveManager.equipment_count())
+		_gear_menu.show_status("获得 " + Forge.salvage_text(item.quality))
 
 
 func _show_level_up() -> void:
 	_choices = _skills.roll_choices()
 	var cards := PackedStringArray()
-	var gold_index := -1
-	for skill in _choices:
-		if _skills.is_evolution_card(skill):
-			gold_index = cards.size()
-		cards.append(_skills.card_text(skill))
+	var gold := PackedInt32Array()
+	for choice in _choices:
+		if choice.rarity != "normal":
+			gold.append(cards.size())
+		cards.append(_skills.card_text(choice))
 	# 暂停前清除旧触点，防止松手发生在暂停期间、恢复后角色仍在移动。
 	_joystick.reset()
 	get_tree().paused = true
-	_upgrade_menu.open(cards, gold_index)
+	_upgrade_menu.open(cards, gold)
 	_audio.play_cue(BattleAudio.Cue.LEVEL_UP)
 
 
 func _on_upgrade_chosen(index: int) -> void:
 	if _phase != Phase.BATTLE or not _upgrade_menu.visible or index < 0 or index >= _choices.size():
 		return
-	_skills.apply_upgrade(_choices[index])
+	_skills.apply_card(_choices[index])
 	_level += 1
 	_xp -= _xp_required
 	_xp_required = floori(_xp_required * 1.3)
@@ -651,9 +761,9 @@ func _save_run_result() -> void:
 	if _phase != Phase.RESULT or _settlement_saved:
 		return
 	var loot := _inventory.new_loot()
-	_settlement_error = SaveManager.settle_run(_spirit_stones, _run_won, _abyss_id, loot)
+	_settlement_error = SaveManager.settle_run(_spirit_stones, _run_won, _abyss_id, loot, _iron)
 	_settlement_saved = _settlement_error == OK
-	_result_menu.show_settlement(_settlement_error, _spirit_stones, SaveManager.spirit_stones(), loot.size())
+	_result_menu.show_settlement(_settlement_error, _spirit_stones, SaveManager.spirit_stones(), loot.size(), _iron)
 
 
 func _restart_battle() -> void:

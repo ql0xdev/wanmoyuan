@@ -29,6 +29,10 @@ static func roll(tier: int, purple_chance: float, rng: RandomNumberGenerator) ->
 	if rng.randf() >= purple_chance:
 		var roll_value := rng.randi_range(1, 97)
 		quality = 0 if roll_value <= 55 else (1 if roll_value <= 85 else 2)
+	return create_item(slot, tier, quality, rng)
+
+
+static func create_item(slot: String, tier: int, quality: int, rng: RandomNumberGenerator) -> Dictionary:
 	var choices := AFFIXES.keys()
 	var affixes := {}
 	var scale := float(1 << tier)
@@ -38,11 +42,14 @@ static func roll(tier: int, purple_chance: float, rng: RandomNumberGenerator) ->
 		var rule: Dictionary = AFFIXES[stat]
 		var value := rng.randf_range(rule.min, rule.max) * scale
 		affixes[stat] = roundf(value) if _flat(stat) else snappedf(value, 0.01)
-	return {"slot": slot, "tier": tier, "quality": quality, "affixes": affixes}
+	return {"slot": slot, "tier": tier, "quality": quality, "affixes": affixes, "star": 0}
 
 
 static func is_valid(item: Variant) -> bool:
 	if not item is Dictionary:
+		return false
+	var star: Variant = item.get("star", 0)
+	if not star is int or star < 0 or star > 5:
 		return false
 	var tier: Variant = item.get("tier")
 	var quality: Variant = item.get("quality")
@@ -64,8 +71,9 @@ static func is_valid(item: Variant) -> bool:
 
 static func base_stats(item: Dictionary) -> Dictionary:
 	var result: Dictionary = SLOTS[item.slot].base.duplicate()
+	var factor := float(1 << int(item.tier)) * (1.0 + 0.15 * int(item.get("star", 0)))
 	for stat: String in result:
-		result[stat] *= 1 << int(item.tier)
+		result[stat] *= factor
 	return result
 
 

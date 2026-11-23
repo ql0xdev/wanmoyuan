@@ -4,6 +4,10 @@ const BATTLE_SCENE := "res://scenes/main.tscn"
 const Catalog = preload("res://scripts/cultivation_catalog.gd")
 const StatsManager = preload("res://scripts/stats_manager.gd")
 const GearMenu = preload("res://scenes/ui/equipment_menu.gd")
+const Forge = preload("res://scripts/forge_catalog.gd")
+const ForgeMenu = preload("res://scenes/ui/forge_menu.gd")
+const SacrificePicker = preload("res://scenes/ui/forge_sacrifice.gd")
+const ForgeFlash = preload("res://scenes/ui/forge_flash.gd")
 const GameMenu = preload("res://scenes/ui/game_menu.gd")
 const Look = preload("res://scenes/ui/ui_look.gd")
 const Backdrop = preload("res://scenes/ui/ui_backdrop.gd")
@@ -46,17 +50,39 @@ var _skill_options: VBoxContainer
 var _selected_abyss := Catalog.DEFAULT_ABYSS
 var _loadout: Array = Catalog.DEFAULT_LOADOUT.duplicate()
 var _flash_tween: Tween
+var _forge_menu: ForgeMenu
+var _picker: SacrificePicker
+var _forge_flash: ForgeFlash
+var _star_grid: GearMenu
+var _star_id := 0
 
 
 func _ready() -> void:
-	_storage.wear_requested.connect(_wear_equipment)
-	_storage.salvage_requested.connect(_salvage_equipment)
+	_connect_gear_grid(_storage)
+	_forge_menu = ForgeMenu.new()
+	_forge_menu.name = "熔炉"
+	_tabs.add_child(_forge_menu)
+	_connect_gear_grid(_forge_menu.gear)
+	_forge_menu.crafted.connect(_refresh)
+	_picker = SacrificePicker.new()
+	$SafeArea.add_child(_picker)
+	_picker.confirmed.connect(_confirm_star)
+	_forge_flash = ForgeFlash.new()
+	$SafeArea.add_child(_forge_flash)
+	_forge_menu.masterwork.connect(_forge_flash.flash.bind("神匠一击"))
 	_game_menu.closed.connect(_resume_cave)
 	_build_stat_tiles()
 	_build_skill_tree()
 	_build_preparation()
 	Look.skin_buttons(self)
 	_refresh()
+
+
+func _connect_gear_grid(grid: GearMenu) -> void:
+	grid.attach_tooltip($SafeArea)
+	grid.wear_requested.connect(_wear_equipment.bind(grid))
+	grid.salvage_requested.connect(_salvage_equipment.bind(grid))
+	grid.star_requested.connect(_open_star.bind(grid))
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -97,7 +123,7 @@ func _refresh() -> void:
 			descriptor = "未解锁"
 		progress.append("%s %s" % [Catalog.ABYSSES[abyss].name, descriptor])
 	_progress.text = "　".join(progress)
-	_stones.text = "洞府灵石  %d" % SaveManager.spirit_stones()
+	_stones.text = "洞府灵石 %d　·　玄铁 %d" % [SaveManager.spirit_stones(), SaveManager.iron()]
 
 	var target: String = Catalog.REALMS[SaveManager.realm()].next
 	_breakthrough.disabled = target.is_empty() or SaveManager.spirit_stones() < Catalog.REALMS[target].cost
@@ -110,7 +136,8 @@ func _refresh() -> void:
 		_breakthrough_bar.value = float(SaveManager.spirit_stones())
 		_breakthrough_progress.text = "%d / %d 灵石" % [SaveManager.spirit_stones(), cost]
 	_refresh_skill_tree()
-	_storage.display(GearMenu.Mode.STORAGE, SaveManager.storage(), worn)
+	_storage.display(GearMenu.Mode.STORAGE, SaveManager.storage(), worn, 0, SaveManager.iron())
+	_forge_menu.refresh()
 
 
 func _build_stat_tiles() -> void:
@@ -275,21 +302,44 @@ func _train(id: String) -> void:
 	_refresh()
 
 
-func _wear_equipment(id: int, equip: bool) -> void:
+func _wear_equipment(id: int, equip: bool, grid: GearMenu) -> void:
 	if SaveManager.change_equipment(id, equip) != OK:
-		_storage.show_status("无法更换装备，存档未变更。")
+		grid._popup.show_status("无法更换装备，存档未变更。")
 		return
 	_refresh()
-	_storage.show_status("已穿戴并保存。" if equip else "已卸下并保存。")
+	grid.show_status("已穿戴并保存。" if equip else "已卸下并保存。")
 
 
-func _salvage_equipment(id: int) -> void:
-	var previous := SaveManager.spirit_stones()
+func _salvage_equipment(id: int, grid: GearMenu) -> void:
+	var item: Dictionary = grid._items.get(id, {})
+	if item.is_empty():
+		return
 	if SaveManager.salvage_equipment(id) != OK:
-		_storage.show_status("分解失败，存档未变更。")
+		grid._popup.show_status("分解失败，存档未变更。")
 		return
 	_refresh()
-	_storage.show_status("已分解 · +%d 灵石" % (SaveManager.spirit_stones() - previous))
+	grid.show_status("获得 " + Forge.salvage_text(item.quality))
+
+
+func _open_star(id: int, grid: GearMenu) -> void:
+	var item: Dictionary = grid._items.get(id, {})
+	if item.is_empty():
+		return
+	var candidates := grid.star_candidates(item)
+	var cost := Forge.star_cost(item)
+	if not Forge.can_star(cost, SaveManager.iron(), candidates.size()):
+		return
+	_star_grid = grid
+	_star_id = id
+	_picker.open(item, candidates, cost)
+
+
+func _confirm_star(ids: Array) -> void:
+	if SaveManager.star_equipment(_star_id, ids) != OK:
+		_star_grid._popup.show_status("升星失败，材料未扣除。")
+		return
+	_refresh()
+	_forge_flash.flash("升星成功")
 
 
 func _build_preparation() -> void:

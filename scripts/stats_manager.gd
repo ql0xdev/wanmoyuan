@@ -14,6 +14,8 @@ var _realm: Dictionary = Catalog.REALMS["qi_refining"]
 var _passive := {}
 var _gear := {}
 var _pills := {}
+var _run := {}
+var _run_remaining := {}
 
 
 func configure(realm: String, passives: Dictionary, equipment: Dictionary) -> void:
@@ -31,13 +33,25 @@ func rebuild_equipment(equipment: Dictionary) -> void:
 		for group: Dictionary in [Equipment.base_stats(item), item.affixes]:
 			for stat: String in group:
 				_gear[stat] = _gear.get(stat, 0.0) + group[stat]
-	cooldown_multiplier = maxf(1.0 - COOLDOWN_CAP, _remaining("cooldown"))
+	_refresh_derived()
+
+
+func add_run_stat(stat: String, amount: float) -> void:
+	_run[stat] = _run.get(stat, 0.0) + amount
+	if stat in ["cooldown", "mitigation"]:
+		_run_remaining[stat] = _run_remaining.get(stat, 1.0) * (1.0 - amount)
+	_refresh_derived()
+
+
+func _refresh_derived() -> void:
+	cooldown_multiplier = maxf(0.000001, maxf(1.0 - COOLDOWN_CAP, _remaining("cooldown")) \
+		* _run_remaining.get("cooldown", 1.0))
 	magnet_radius = BASE_MAGNET_RADIUS * _factor("magnet")
 
 
-func max_health(run_bonus := 0) -> int:
+func max_health() -> int:
 	return roundi((BASE_HEALTH + _passive.get("health_flat", 0.0) + _gear.get("health_flat", 0.0))
-		* _realm.power * _factor("health")) + run_bonus
+		* _realm.power * _factor("health")) + int(_run.get("health_flat", 0))
 
 
 func attack_multiplier() -> float:
@@ -49,7 +63,8 @@ func damage(base: int) -> int:
 
 
 func damage_taken_multiplier() -> float:
-	return maxf(1.0 - MITIGATION_CAP, _remaining("mitigation") * (0.8 if has_pill("guard") else 1.0))
+	return maxf(1.0 - MITIGATION_CAP, _remaining("mitigation") * (0.8 if has_pill("guard") else 1.0)) \
+		* _run_remaining.get("mitigation", 1.0)
 
 
 func incoming_damage(base: int) -> int:
@@ -69,7 +84,7 @@ func stone_amount(base: int) -> int:
 
 
 func kill_heal() -> int:
-	return int(_gear.get("kill_heal", 0))
+	return int(_gear.get("kill_heal", 0.0) + _run.get("kill_heal", 0.0))
 
 
 func has_pill(id: String) -> bool:
@@ -81,8 +96,9 @@ func use_pill(id: String) -> void:
 
 
 func _factor(stat: String) -> float:
-	return (1.0 + _passive.get(stat, 0.0)) * (1.0 + _gear.get(stat, 0.0))
+	return (1.0 + _passive.get(stat, 0.0)) * (1.0 + _gear.get(stat, 0.0)) * (1.0 + _run.get(stat, 0.0))
 
 
 func _remaining(stat: String) -> float:
+	# 旧装备/心法上限不变；局内卡牌在其后每次按剩余比例叠乘。
 	return maxf(0.0, 1.0 - _passive.get(stat, 0.0)) * maxf(0.0, 1.0 - _gear.get(stat, 0.0))

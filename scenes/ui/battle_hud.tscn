@@ -359,14 +359,16 @@ theme_override_font_sizes/font_size = 22
 text = "拾取装备和灵石，时间到后自动结算。"
 horizontal_alignment = 1
 
-[node name="LootNotice" type="Label" parent="."]
+[node name="LootNotice" type="Button" parent="."]
 visible = false
 layout_mode = 1
-anchor_right = 1.0
+anchor_left = 0.5
+anchor_right = 0.5
 anchor_top = 0.78
 anchor_bottom = 0.78
 mouse_filter = 2
+focus_mode = 0
+flat = true
 theme_override_colors/font_outline_color = Color(0.04, 0.06, 0.07, 1)
 theme_override_constants/outline_size = 6
 theme_override_font_sizes/font_size = 26
-horizontal_alignment = 1

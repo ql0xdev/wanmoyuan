@@ -8,6 +8,8 @@ var _players: Array[AudioStreamPlayer] = []
 
 
 func _ready() -> void:
+	if DisplayServer.get_name() == "headless":
+		return
 	for cue in range(DURATIONS.size()):
 		var player := AudioStreamPlayer.new()
 		player.stream = _make_sound(cue, DURATIONS[cue])
@@ -18,7 +20,8 @@ func _ready() -> void:
 
 
 func play_cue(cue: int) -> void:
-	_players[cue].play()
+	if not _players.is_empty():
+		_players[cue].play()
 
 
 func _make_sound(cue: int, duration: float) -> AudioStreamWAV:

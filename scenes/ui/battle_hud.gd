@@ -18,7 +18,7 @@ extends Control
 @onready var _boss_action: Label = $BossAction
 @onready var _victory_loot_panel: PanelContainer = $VictoryLoot
 @onready var _victory_loot_label: Label = $VictoryLoot/Margin/Content/Heading/Seconds
-@onready var _loot_notice: Label = $LootNotice
+@onready var _loot_notice: Button = $LootNotice
 
 var _loot_tween: Tween
 var _boss_notice_tween: Tween
@@ -27,6 +27,7 @@ var _action_tween: Tween
 var _boss_name := ""
 var _shield := 0
 var _shown_victory_loot_seconds := -1
+var loot_item_id := 0
 
 
 func set_progress(level: int, abyss: String, realm: String, xp: int, required: int) -> void:
@@ -129,10 +130,16 @@ func set_victory_loot_seconds(seconds: int) -> void:
 		_victory_loot_label.text = "%d 秒" % seconds
 
 
-func show_loot(message: String, color: Color) -> void:
+func show_loot(message: String, color: Color, item_id := 0) -> void:
 	if _loot_tween != null:
 		_loot_tween.kill()
 	_loot_notice.text = message
+	var width := minf(size.x, _loot_notice.get_combined_minimum_size().x + 36.0)
+	_loot_notice.offset_left = -width * 0.5
+	_loot_notice.offset_right = width * 0.5
+	_loot_notice.offset_bottom = 48.0
+	loot_item_id = item_id
+	_loot_notice.mouse_filter = Control.MOUSE_FILTER_STOP if item_id != 0 else Control.MOUSE_FILTER_IGNORE
 	_loot_notice.modulate = color
 	_loot_notice.show()
 	_loot_tween = create_tween()
