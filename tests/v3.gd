@@ -39,6 +39,12 @@ func _run() -> void:
 				await _test_play(save)
 		"exit":
 			await _test_exit(save)
+		"retreat":
+			await _test_retreat(save)
+		"loot":
+			await _test_ground_loot()
+		"evacuation":
+			await _test_evacuation(save)
 		"reload":
 			await _test_reload(save)
 		"invalid":
@@ -46,7 +52,7 @@ func _run() -> void:
 		"stress":
 			await _test_stress(save)
 		_:
-			_expect(false, "用法：--script res://tests/v3.gd -- play|exit|reload|invalid|stress")
+			_expect(false, "用法：--script res://tests/v3.gd -- play|exit|retreat|loot|evacuation|reload|invalid|stress")
 	if _failures == 0:
 		print("V3 PASS: ", args[0])
 	quit(1 if _failures else 0)
@@ -150,14 +156,16 @@ func _test_play(save: Node) -> void:
 	_expect(not paused and save.spirit_stones() == 120 and battle._spirit_stones == 0 and battle._xp == 0
 		and battle._inventory.worn.is_empty() and battle._player.stats.damage(100) == 100, "重开清理局内状态")
 	await _defeat_boss(battle, Vector3(750, 0, 0))
-	_expect(save.spirit_stones() == 120 and save.has_cleared("outer") and save.equipment_count() == 3, "胜利保存两件装备，未拾取魔尊灵石不自动入账")
+	_expect(save.spirit_stones() == 120 and save.has_cleared("outer") and save.equipment_count() == 1
+		and _ground_gear(battle).size() == 2, "魔尊未拾取的两件装备和灵石都不自动带回")
 
 	_button(RESULT_CONTENT + "Restart").pressed.emit()
 	await scene_changed
 	battle = current_scene
 	_drop_stones(battle, 200, battle._player.global_position)
 	await _defeat_boss(battle, Vector3.ZERO)
-	_expect(save.spirit_stones() == 520, "胜利慢动作内实际拾到的 200 灵石带出")
+	_expect(save.spirit_stones() == 520 and save.equipment_count() == 3 and _ground_gear(battle).is_empty(),
+		"胜利后实际拾到的魔尊灵石和两件装备带回")
 	_button(RESULT_CONTENT + "Cave").pressed.emit()
 	await scene_changed
 	cave = current_scene
@@ -195,10 +203,14 @@ func _test_play(save: Node) -> void:
 	var golem: Node = battle._spawn_enemy(battle._golem_pool)
 	_expect(wolf.max_health == 50 and wolf.damage == 20 and is_equal_approx(battle._spawn_interval(0.0), 1.25), "中渊血量、伤害及刷怪频率")
 	golem.take_damage(golem.max_health)
-	_expect(battle._inventory.new_loot().size() == 1 and battle._inventory.new_loot()[0].tier == 1, "中渊石傀必掉筑基装")
+	var drops := _ground_gear(battle)
+	_expect(drops.size() == 1 and "筑基级" in drops[0].display_name and battle._inventory.new_loot().is_empty(),
+		"中渊石傀必掉筑基装，先留在地上")
+	_pick_ground_gear(battle, drops[0])
+	_expect(battle._inventory.new_loot().size() == 1 and battle._inventory.new_loot()[0].tier == 1, "拾取后进入行囊")
 	_drop_stones(battle, 1600, battle._player.global_position)
 	await _defeat_boss(battle, Vector3.ZERO)
-	_expect(save.spirit_stones() == 2020 and save.has_cleared("middle") and save.equipment_count() == 8, "中渊魔尊灵石倍率、通关进度与掉装")
+	_expect(save.spirit_stones() == 2020 and save.has_cleared("middle") and save.equipment_count() == 6, "中渊魔尊灵石倍率、通关进度与掉装")
 	_button(RESULT_CONTENT + "Cave").pressed.emit()
 	await scene_changed
 	cave = current_scene
@@ -213,7 +225,7 @@ func _test_play(save: Node) -> void:
 	_expect(inner_wolf.max_health == 120 and inner_wolf.damage == 40 and is_equal_approx(battle._spawn_interval(0.0), 1.0), "内渊数值")
 	_test_fire_and_blink(battle)
 	await _defeat_boss(battle, Vector3.ZERO)
-	_expect(save.spirit_stones() == 820 and save.has_cleared("inner") and save.equipment_count() == 10, "内渊结算与稀有层级")
+	_expect(save.spirit_stones() == 820 and save.has_cleared("inner") and save.equipment_count() == 8, "内渊结算与稀有层级")
 	_button(RESULT_CONTENT + "Restart").pressed.emit()
 	await scene_changed
 	battle = current_scene
@@ -264,6 +276,70 @@ func _test_storm_and_card_pool(battle: Node) -> void:
 	_expect(battle._player.max_health == 250, "保底气血 +20")
 
 
+func _test_retreat(save: Node) -> void:
+	if save.has_profile() or save.load_error() != OK:
+		_expect(false, "retreat 需要空测试目录")
+		return
+	await _open_start_menu()
+	_button(START_BUTTON).pressed.emit()
+	await scene_changed
+	_expect(save.settle_run(40, false, "outer", [WHITE_WEAPON]) == OK and save.change_equipment(1, true) == OK,
+		"准备已有装备与灵石的测试存档")
+	var cave := current_scene
+	cave._open_game_menu()
+	_expect(not cave._game_menu._retreat.visible, "洞府不显示退出战斗")
+	cave._game_menu._back.pressed.emit()
+	await _enter_abyss("outer")
+	var battle := current_scene
+	await process_frame
+	_drop_stones(battle, 200, battle._player.global_position)
+	_drop_stones(battle, 500, battle._player.global_position + Vector3(750, 0, 0))
+	battle._open_shop()
+	battle._shop_menu.purchase_requested.emit("rage")
+	battle._close_shop()
+	battle._inventory.collect(WHITE_WEAPON.duplicate())
+	battle._open_bag()
+	battle._gear_menu._select(-1)
+	battle._gear_menu._equip.pressed.emit()
+	battle._close_gear()
+	var golem: Node = battle._spawn_enemy_at(battle._golem_pool, Vector3(600, 0, 0))
+	golem.take_damage(golem.max_health)
+	_pick_ground_gear(battle, _ground_gear(battle)[0])
+	var uncollected_golem: Node = battle._spawn_enemy_at(battle._golem_pool, Vector3(760, 0, 0))
+	uncollected_golem.take_damage(uncollected_golem.max_health)
+	_expect(battle._inventory.new_loot().size() == 2 and battle._spirit_stones == 100,
+		"本局有穿戴和行囊里的新装备，地上有未拾取的装备和灵石")
+
+	_tap(battle, battle._hud.menu_button)
+	var menu: Control = battle._game_menu
+	_expect(paused and menu._retreat.visible and menu._exit.visible, "退出战斗与退出游戏分开")
+	menu._retreat.pressed.emit()
+	_expect(menu._retreat.text == "撤离并结算" and "不计通关" in menu._hint.text and not menu._exit.visible, "退出战斗前展示确认说明")
+	menu._back.pressed.emit()
+	menu._back.pressed.emit()
+	_expect(not paused and not battle._result_menu.visible and save.spirit_stones() == 40, "取消可继续战斗，不结算")
+
+	battle._open_game_menu()
+	menu._retreat.pressed.emit()
+	_expect(DirAccess.make_dir_absolute(TEMP_PATH) == OK, "模拟撤离结算写入失败")
+	menu._retreat.pressed.emit()
+	_expect(paused and not menu.visible and battle._result_menu._title.text == "提前撤离", "确认撤离打开结算，不退出游戏")
+	_expect(_button(RESULT_CONTENT + "Retry").visible and _button(RESULT_CONTENT + "Cave").disabled
+		and save.spirit_stones() == 40 and save.equipment_count() == 1, "撤离写入失败时保留战利品供重试")
+	_expect(DirAccess.remove_absolute(TEMP_PATH) == OK, "解除写入故障")
+	_button(RESULT_CONTENT + "Retry").pressed.emit()
+	battle._result_menu.save_retry_requested.emit()
+	menu.retreat_requested.emit()
+	_expect(save.spirit_stones() == 140 and save.equipment_count() == 3 and not save.has_cleared("outer"),
+		"只带回剩余灵石和两件新装备，不计通关、不重复入账")
+	var config := ConfigFile.new()
+	_expect(config.load(SAVE_PATH) == OK and config.get_value("profile", "spirit_stones", 0) == 140,
+		"撤离结算立即写盘")
+	_button(RESULT_CONTENT + "Cave").pressed.emit()
+	await scene_changed
+	_expect(not paused and current_scene._stones.text.ends_with("140"), "撤离后可返回洞府")
+
+
 func _test_fire_and_blink(battle: Node) -> void:
 	var skills: Node = battle._skills
 	var enemy: Node3D = battle._living_enemies[0]
@@ -280,6 +356,88 @@ func _test_fire_and_blink(battle: Node) -> void:
 			break
 	_expect(is_equal_approx(start.distance_to(battle._player.global_position), 300.0), "缩地成寸受击时概率瞬移 300")
 	battle._player.global_position = start
+
+
+func _test_ground_loot() -> void:
+	_expect(change_scene_to_file("res://scenes/main.tscn") == OK, "进入掉落实例测试")
+	await scene_changed
+	var battle := current_scene
+	var drop_by_quality := {}
+	for quality in range(Equipment.QUALITIES.size()):
+		var item := WHITE_WEAPON.duplicate(true)
+		item.quality = quality
+		var stats := ["damage", "cooldown", "mitigation"]
+		for i in range(quality):
+			item.affixes[stats[i]] = 0.1
+		battle._drop_equipment(Vector3(-180.0 + quality * 120.0, 0.0, -320.0), item)
+	for drop: Node3D in _ground_gear(battle):
+		var quality: int = drop._item.quality
+		drop_by_quality[quality] = drop
+		_expect(drop.display_name == Equipment.title(drop._item) and drop.quality_color == Equipment.COLORS[quality]
+			and battle._effects._ground_equipment.has(drop), "地面装备有对应的品质色全名")
+		_expect(drop._glow.visible == (quality > 0) and drop._marker.material_override.emission_enabled == (quality > 0),
+			"白装无光柱也不自发光，绿蓝紫装发光")
+		if quality > 0:
+			_expect(drop._glow.material_override.get_shader_parameter("tint") == Equipment.COLORS[quality], "光柱使用对应品质色")
+		drop._physics_process(3.0)
+	_expect(drop_by_quality.size() == 4 and _ground_gear(battle).size() == 4
+		and battle._inventory.bag.is_empty(), "站远处不拾取，落地三秒不会消失")
+	var purple: Node3D = drop_by_quality[3]
+	_pick_ground_gear(battle, purple)
+	_expect(not purple.visible and not battle._effects._ground_equipment.has(purple)
+		and battle._inventory.bag.size() == 1 and battle._inventory.bag[0].quality == 3,
+		"靠近只拾取一次，拿走即移除名字和光柱")
+	battle._drop_equipment(Vector3(240.0, 0.0, -320.0), WHITE_WEAPON.duplicate())
+	_expect(purple.visible and not purple._glow.visible and purple._glow.material_override == null
+		and not purple._marker.material_override.emission_enabled, "对象池复用紫装节点时不会让白装继承光效")
+	while battle._inventory.bag.size() < Equipment.BAG_CAPACITY:
+		battle._inventory.collect(WHITE_WEAPON.duplicate())
+	var blue: Node3D = drop_by_quality[2]
+	_expect(battle._spirit_stones == 0 and blue.visible, "满包时地面装备不提前分解")
+	_pick_ground_gear(battle, blue)
+	_expect(battle._spirit_stones == 40 and not blue.visible and battle._inventory.bag.size() == Equipment.BAG_CAPACITY,
+		"满包时必须实际拾取才按原规则分解")
+
+
+func _test_evacuation(save: Node) -> void:
+	if save.has_profile() or save.load_error() != OK:
+		_expect(false, "evacuation 需要空测试目录")
+		return
+	_expect(change_scene_to_file("res://scenes/main.tscn") == OK, "进入离场测试")
+	await scene_changed
+	var battle := current_scene
+	battle._spawn_enemy_at(battle._wolf_pool, Vector3(-260, 0, -250))
+	battle._drop_equipment(Vector3(1000, 0, 0), WHITE_WEAPON.duplicate())
+	_drop_stones(battle, 500, Vector3(1000, 0, 0))
+	_kill_boss(battle, Vector3(325, 0, 0))
+	await create_timer(0.65, true, false, true).timeout
+	_expect(not paused and is_equal_approx(Engine.time_scale, 1.0)
+		and battle._hud._victory_loot_panel.visible and battle._hud._victory_loot_label.text == "10 秒",
+		"魔尊慢动作后开始 10 秒倒计时，不立即结算")
+	_expect(not battle._player.accepts_damage and not battle.get_node("Enemies").visible
+		and not battle.get_node("Projectiles").visible and battle._skills.process_mode == Node.PROCESS_MODE_DISABLED,
+		"倒计时内可安全拾取，不再刷怪或施法")
+	var started := Time.get_ticks_msec()
+	var ended_at: float = battle._elapsed
+	battle._player._on_joystick_direction_changed(Vector2.RIGHT)
+	await create_timer(1.60, true, true).timeout
+	battle._player._on_joystick_direction_changed(Vector2.ZERO)
+	_expect(battle._player.global_position.x > 270.0 and battle._inventory.new_loot().size() == 2
+		and battle._spirit_stones == 200 and _ground_gear(battle).size() == 1,
+		"倒计时内能走到远处，实际捡到魔尊的两件装备和灵石")
+	_expect(battle._hud._shown_victory_loot_seconds < 10 and battle._elapsed == ended_at
+		and not save.has_profile(), "倒计时递减，不计入战斗用时，也未提前入档")
+	while battle._victory_loot_left > 0.30 and not paused:
+		await physics_frame
+	_expect(battle._victory_loot_left > 0.0 and not paused and not battle._result_menu.visible, "时间未到，不提前结算")
+	while not paused:
+		await physics_frame
+	var seconds := (Time.get_ticks_msec() - started) / 1000.0
+	_expect(seconds >= 8.8 and seconds <= 11.5, "实际等待约 10 秒（%.2f 秒）" % seconds)
+	_expect(paused and battle._result_menu._title.text == "渡劫成功" and save.has_cleared("outer"),
+		"时间到自动胜利结算")
+	_expect(save.spirit_stones() == 200 and save.equipment_count() == 2,
+		"只保存倒计时结束前已拾取的灵石和装备")
 
 
 func _test_storage_overflow(battle: Node, save: Node) -> void:
@@ -412,7 +570,28 @@ func _drop_stones(battle: Node, amount: int, at: Vector3) -> void:
 	stone._physics_process(1.0 / 60.0)
 
 
+func _ground_gear(battle: Node) -> Array:
+	return battle.get_node("Pickups/EquipmentDrops").get_children().filter(func(drop: Node3D) -> bool: return drop.visible)
+
+
+func _pick_ground_gear(battle: Node, drop: Node3D) -> void:
+	var before: Vector3 = battle._player.global_position
+	battle._player.global_position = drop.global_position
+	drop._physics_process(0.18)
+	battle._player.global_position = before
+
+
 func _defeat_boss(battle: Node, offset: Vector3) -> void:
+	_kill_boss(battle, offset)
+	await create_timer(0.63, true, false, true).timeout
+	_expect(not paused and is_equal_approx(Engine.time_scale, 1.0) and battle._hud._victory_loot_panel.visible,
+		"胜利慢动作结束后开始离场倒计时")
+	# 这里跳过剩余倒计时；evacuation 测试另走一次完整 10 秒流程。
+	battle._physics_process(10.0)
+	_expect(paused and battle._result_menu.visible, "离场倒计时时间到结算")
+
+
+func _kill_boss(battle: Node, offset: Vector3) -> void:
 	battle._elapsed = 179.95
 	battle._physics_process(0.02)
 	_expect(not battle._boss_spawned, "180 秒之前不刷魔尊")
@@ -422,8 +601,6 @@ func _defeat_boss(battle: Node, offset: Vector3) -> void:
 	_expect(battle._boss_spawned and boss.max_health == health and boss.period_multiplier == battle._abyss.boss_period, "180 秒刷对应魔尊")
 	boss.global_position = battle._player.global_position + offset
 	boss.take_damage(boss.max_health)
-	await create_timer(0.63, true, false, true).timeout
-	_expect(paused and is_equal_approx(Engine.time_scale, 1.0), "胜利慢动作自动恢复并结算")
 
 
 func _open_start_menu() -> void:

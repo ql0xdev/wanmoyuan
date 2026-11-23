@@ -73,9 +73,21 @@ custom_minimum_size = Vector2(0, 58)
 layout_mode = 2
 text = "保存进度"
 
-[node name="Exit" type="Button" parent="Center/Panel/Content"]
+[node name="ExitActions" type="HBoxContainer" parent="Center/Panel/Content"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Retreat" type="Button" parent="Center/Panel/Content/ExitActions"]
+visible = false
 custom_minimum_size = Vector2(0, 58)
 layout_mode = 2
+size_flags_horizontal = 3
+text = "退出战斗"
+
+[node name="Exit" type="Button" parent="Center/Panel/Content/ExitActions"]
+custom_minimum_size = Vector2(0, 58)
+layout_mode = 2
+size_flags_horizontal = 3
 text = "退出游戏"
 
 [node name="Back" type="Button" parent="Center/Panel/Content"]
@@ -83,5 +95,6 @@ custom_minimum_size = Vector2(0, 58)
 layout_mode = 2
 
 [connection signal="pressed" from="Center/Panel/Content/Save" to="." method="_save_progress"]
-[connection signal="pressed" from="Center/Panel/Content/Exit" to="." method="_exit_pressed"]
+[connection signal="pressed" from="Center/Panel/Content/ExitActions/Retreat" to="." method="_retreat_pressed"]
+[connection signal="pressed" from="Center/Panel/Content/ExitActions/Exit" to="." method="_exit_pressed"]
 [connection signal="pressed" from="Center/Panel/Content/Back" to="." method="_back_pressed"]

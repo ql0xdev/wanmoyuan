@@ -8,7 +8,7 @@
 2. 手机开启开发者选项与 USB 调试，解锁后用支持数据传输的 USB 线连接电脑，在手机上确认「允许 USB 调试」。运行 `adb devices -l`，看到设备状态为 `device` 后再部署。若列表为空，先换线或 USB 口，再检查 Windows 的手机 ADB 驱动。
 3. 在 Godot 右上角点击 Android 设备按钮，选中手机，即可导出、安装并启动调试版。部署后检查顶部 UI 是否避开挖孔、屏幕左右两侧都能唤出摇杆，以及升级卡牌点按和结算重开。
 
-V3.1 本地调试 APK：`android/wanmoyuan-v3.1-debug.apk`。如需手动安装，可在项目根目录运行 `adb install -r .\android\wanmoyuan-v3.1-debug.apk`。只有签名一致才能覆盖安装；不要为解决签名冲突直接卸载已有版本，以免清除本地存档。
+V3.1.4 本地调试 APK：`android/wanmoyuan-v3.1.4-debug.apk`。如需手动安装，可在项目根目录运行 `adb install -r .\android\wanmoyuan-v3.1.4-debug.apk`。只有签名一致才能覆盖安装；不要为解决签名冲突直接卸载已有版本，以免清除本地存档。
 
 ## 如果需要 Gradle 构建
 

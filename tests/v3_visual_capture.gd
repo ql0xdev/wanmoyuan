@@ -92,6 +92,14 @@ func _run() -> void:
 	golem.take_damage(golem.max_health)
 	_write_projection(battle)
 	await _capture("08-battle-and-loot")
+	if battle.has_method("_drop_equipment"):
+		var loot_positions := [
+			Vector3(-210, 0, -270), Vector3(210, 0, -270),
+			Vector3(-230, 0, 180), Vector3(230, 0, 180),
+		]
+		for i in range(4):
+			battle._drop_equipment(loot_positions[i], items[i].duplicate(true))
+		await _capture("15-ground-gear")
 	var currency: int = battle._spirit_stones
 	battle._open_shop()
 	await create_timer(0.23, true).timeout
@@ -120,6 +128,10 @@ func _run() -> void:
 	await create_timer(0.23, true).timeout
 	await _capture("13-pause")
 	battle._game_menu._back.pressed.emit()
+	if battle.has_method("_start_victory_loot"):
+		boss.take_damage(boss.max_health)
+		await create_timer(0.65, true, false, true).timeout
+		await _capture("16-evacuation")
 	battle._elapsed = 185.7
 	battle._show_result(true)
 	await _capture("14-result")

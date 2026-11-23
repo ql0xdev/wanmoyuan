@@ -11,6 +11,7 @@ const DemonLord = preload("res://scenes/enemies/demon_lord.gd")
 const MagicOrb = preload("res://scenes/enemies/magic_orb.gd")
 const FlyingSword = preload("res://scenes/skills/flying_sword.gd")
 const MagnetPickup = preload("res://scenes/pickups/magnet_pickup.gd")
+const EquipmentPickup = preload("res://scenes/pickups/equipment_pickup.gd")
 const SkillController = preload("res://scenes/skills/skill_controller.gd")
 const BattleHUD = preload("res://scenes/ui/battle_hud.gd")
 const UpgradeMenu = preload("res://scenes/ui/upgrade_menu.gd")
@@ -34,8 +35,11 @@ const ORB_SCENE := preload("res://scenes/enemies/magic_orb.tscn")
 const SWORD_SCENE := preload("res://scenes/skills/flying_sword.tscn")
 const CRYSTAL_SCENE := preload("res://scenes/pickups/spirit_crystal.tscn")
 const STONE_SCENE := preload("res://scenes/pickups/spirit_stone.tscn")
+const EQUIPMENT_SCENE := preload("res://scenes/pickups/equipment_pickup.tscn")
 const CAVE_SCENE := "res://scenes/ui/cave_menu.tscn"
 const STONE_DROP_OFFSET := Vector3(24.0, 0.0, -24.0)
+const EQUIPMENT_DROP_OFFSET := Vector3(-22.0, 0.0, 22.0)
+const EQUIPMENT_SPREAD := 54.0
 const MAX_ENEMIES := 100
 const BASE_SPAWN_INTERVAL := 1.5
 const MIN_SPAWN_INTERVAL := 0.4
@@ -49,10 +53,11 @@ const BOSS_SUMMON_COUNT := 4
 const BOSS_SUMMON_RADIUS := 66.0
 const VICTORY_SLOW_DURATION := 0.5
 const VICTORY_TIME_SCALE := 0.45
+const VICTORY_LOOT_SECONDS := 10
 const TIME_EPSILON := 0.000001
 const SPAWN_MARGIN := 48.0
 
-enum Phase { BATTLE, VICTORY_SLOW, RESULT }
+enum Phase { BATTLE, VICTORY_SLOW, VICTORY_LOOT, RESULT }
 
 @onready var _player: Player = $Player
 @onready var _camera: BattleCamera = $Camera
@@ -77,6 +82,7 @@ var _orb_pool: ObjectPool
 var _sword_pool: ObjectPool
 var _crystal_pool: ObjectPool
 var _stone_pool: ObjectPool
+var _equipment_pool: ObjectPool
 var _living_enemies: Array[Enemy] = []
 var _active_enemy_count := 0
 var _elapsed := 0.0
@@ -86,6 +92,7 @@ var _next_golem_at := GOLEM_START
 var _boss_spawned := false
 var _phase := Phase.BATTLE
 var _previous_time_scale := 1.0
+var _victory_loot_left := 0.0
 var _kills := 0
 var _shown_second := 0
 var _level := 1
@@ -129,10 +136,11 @@ func _ready() -> void:
 	_sword_pool = ObjectPool.new(SWORD_SCENE, $Projectiles, 100, _connect_sword)
 	_crystal_pool = ObjectPool.new(CRYSTAL_SCENE, $Pickups, 200, _connect_crystal)
 	_stone_pool = ObjectPool.new(STONE_SCENE, $Pickups, 32, _connect_stone)
+	_equipment_pool = ObjectPool.new(EQUIPMENT_SCENE, $Pickups/EquipmentDrops, 12, _connect_equipment)
 	_camera.snap_to(_player.global_position)
 	_ground.follow(_camera.focus)
 	_ground.set_abyss_tint(_abyss.color)
-	_effects.configure(_camera.presentation, $DeathBursts, $LootBeams)
+	_effects.configure(_camera.presentation, $DeathBursts)
 	_skills.configure(_player, _living_enemies, _launch_sword, _camera, _loadout)
 	_joystick.reserved_buttons.assign([_hud.shop_button, _hud.bag_button, _hud.menu_button])
 	_joystick.reserved_button_tapped.connect(_on_battle_button_tapped)
@@ -140,6 +148,7 @@ func _ready() -> void:
 	_hud.bag_button.pressed.connect(_open_bag)
 	_hud.menu_button.pressed.connect(_open_game_menu)
 	_game_menu.closed.connect(_resume_battle)
+	_game_menu.retreat_requested.connect(_retreat_from_battle)
 	_shop_menu.close_requested.connect(_close_shop)
 	_shop_menu.purchase_requested.connect(_purchase_pill)
 	_gear_overlay.get_node("Content/Close").pressed.connect(_close_gear)
@@ -159,6 +168,9 @@ func _process(delta: float) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if _phase == Phase.VICTORY_LOOT:
+		_update_victory_loot(delta)
+		return
 	if _phase != Phase.BATTLE:
 		return
 	# 只累计实际战斗时间，通过刷新进度在提速时保留本轮已经等待的时间。
@@ -237,6 +249,10 @@ func _connect_crystal(crystal: MagnetPickup) -> void:
 
 func _connect_stone(stone: MagnetPickup) -> void:
 	stone.collected.connect(_on_stone_collected)
+
+
+func _connect_equipment(pickup: EquipmentPickup) -> void:
+	pickup.collected.connect(_on_equipment_collected)
 
 
 func _spawn_enemy(pool: ObjectPool) -> Enemy:
@@ -367,18 +383,17 @@ func _drop_spirit_stone(enemy: Enemy) -> void:
 func _roll_equipment(enemy: Enemy) -> void:
 	if enemy.equipment_chance < 1.0 and _loot_rng.randf() >= enemy.equipment_chance:
 		return
+	var center := enemy.global_position + (EQUIPMENT_DROP_OFFSET if enemy.crystal_count > 0 else Vector3.ZERO)
 	for i in range(enemy.equipment_count):
 		var item := Equipment.roll(_abyss.tier, enemy.purple_chance, _loot_rng)
-		var quality_color: Color = Equipment.COLORS[item.quality]
-		var visual_offset := (i - (enemy.equipment_count - 1) * 0.5) * 22.0
-		_effects.show_loot_beam(enemy.global_position + Vector3.RIGHT * visual_offset, quality_color)
-		var stone_value := _inventory.collect(item)
-		if stone_value > 0:
-			_spirit_stones += stone_value
-			_hud.set_spirit_stones(_spirit_stones)
-			_hud.show_loot("行囊已满 · 自动分解 +%d 灵石" % stone_value, Color("#ffda91"))
-		else:
-			_hud.show_loot("获得 %s" % Equipment.title(item), quality_color)
+		var offset := Vector3.RIGHT * ((i - (enemy.equipment_count - 1) * 0.5) * EQUIPMENT_SPREAD)
+		_drop_equipment(center + offset, item)
+
+
+func _drop_equipment(at: Vector3, item: Dictionary) -> void:
+	var pickup := _equipment_pool.acquire() as EquipmentPickup
+	pickup.drop(at, _player, item)
+	_effects.track_equipment(pickup)
 
 
 func _recycle_wolf(enemy: Enemy) -> void:
@@ -422,11 +437,25 @@ func _on_crystal_collected(crystal: MagnetPickup) -> void:
 func _on_stone_collected(stone: MagnetPickup) -> void:
 	var amount := stone.amount
 	_stone_pool.release(stone)
-	# 胜利慢动作中仍按实际拾取入账，结算不等待也不补发。
+	# 慢动作和离场倒计时都可拾取，未捡的灵石不会在结算时补发。
 	if _phase == Phase.RESULT or not _player.is_alive():
 		return
 	_spirit_stones += amount
 	_hud.set_spirit_stones(_spirit_stones)
+
+
+func _on_equipment_collected(pickup: EquipmentPickup, item: Dictionary) -> void:
+	_effects.untrack_equipment(pickup)
+	_equipment_pool.release(pickup)
+	if _phase == Phase.RESULT or not _player.is_alive():
+		return
+	var stone_value := _inventory.collect(item)
+	if stone_value > 0:
+		_spirit_stones += stone_value
+		_hud.set_spirit_stones(_spirit_stones)
+		_hud.show_loot("行囊已满 · 自动分解 +%d 灵石" % stone_value, Color("#ffda91"))
+	else:
+		_hud.show_loot("获得 %s" % pickup.display_name, pickup.quality_color)
 
 
 func _on_battle_button_tapped(button: Control) -> void:
@@ -580,12 +609,26 @@ func _begin_victory() -> void:
 	get_tree().paused = false
 	_previous_time_scale = Engine.time_scale
 	Engine.time_scale = VICTORY_TIME_SCALE
-	get_tree().create_timer(VICTORY_SLOW_DURATION, false, false, true).timeout.connect(_finish_victory)
+	get_tree().create_timer(VICTORY_SLOW_DURATION, false, false, true).timeout.connect(_start_victory_loot)
 
 
-func _finish_victory() -> void:
+func _start_victory_loot() -> void:
 	Engine.time_scale = _previous_time_scale
-	_show_result(true)
+	_phase = Phase.VICTORY_LOOT
+	_victory_loot_left = float(VICTORY_LOOT_SECONDS)
+	# 击杀已锁定；撤去剩下的敌人与弹道，不阻挡走位或产生额外掉落。
+	for node: Node3D in [$Enemies, $Projectiles, _skills]:
+		node.process_mode = Node.PROCESS_MODE_DISABLED
+		node.hide()
+	_hud.show_victory_loot(VICTORY_LOOT_SECONDS)
+
+
+func _update_victory_loot(delta: float) -> void:
+	_victory_loot_left = maxf(0.0, _victory_loot_left - delta)
+	if _victory_loot_left <= TIME_EPSILON:
+		_show_result(true)
+	else:
+		_hud.set_victory_loot_seconds(ceili(_victory_loot_left - TIME_EPSILON))
 
 
 func _exit_tree() -> void:
@@ -593,7 +636,12 @@ func _exit_tree() -> void:
 		Engine.time_scale = _previous_time_scale
 
 
-func _show_result(won: bool) -> void:
+func _retreat_from_battle() -> void:
+	if _phase == Phase.BATTLE and _game_menu.visible:
+		_show_result(false, true)
+
+
+func _show_result(won: bool, retreated := false) -> void:
 	if _phase == Phase.RESULT:
 		return
 	_phase = Phase.RESULT
@@ -602,9 +650,10 @@ func _show_result(won: bool) -> void:
 	_upgrade_menu.hide()
 	_shop_menu.hide()
 	_gear_overlay.hide()
+	_game_menu.hide()
 	_hud.hide()
 	get_tree().paused = true
-	_result_menu.open(won, floori(_elapsed + TIME_EPSILON), _kills, _level)
+	_result_menu.open(won, floori(_elapsed + TIME_EPSILON), _kills, _level, retreated)
 	_save_run_result()
 
 

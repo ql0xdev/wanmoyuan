@@ -48,11 +48,10 @@ far = 4900.0
 
 [node name="Pickups" type="Node3D" parent="."]
 
+[node name="EquipmentDrops" type="Node3D" parent="Pickups"]
+
 [node name="DeathBursts" type="MultiMeshInstance3D" parent="."]
 material_override = SubResource("StandardMaterial3D_bursts")
-cast_shadow = 0
-
-[node name="LootBeams" type="MultiMeshInstance3D" parent="."]
 cast_shadow = 0
 
 [node name="EffectsLayer" type="CanvasLayer" parent="."]

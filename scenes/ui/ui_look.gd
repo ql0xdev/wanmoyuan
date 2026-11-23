@@ -78,28 +78,28 @@ static func press_feedback(button: Button, down: bool) -> void:
 
 
 static func animate_panel(trigger: Control, panel: Control) -> void:
-	var resting := Vector2(panel.offset_top, panel.offset_bottom)
-	trigger.visibility_changed.connect(_slide_panel.bind(trigger, panel, resting))
+	trigger.visibility_changed.connect(_slide_panel.bind(trigger, panel, panel.offset_top))
 
 
-static func _slide_panel(trigger: Control, panel: Control, resting: Vector2) -> void:
+static func _slide_panel(trigger: Control, panel: Control, resting_top: float) -> void:
 	if panel.has_meta(&"panel_tween"):
 		var previous: Tween = panel.get_meta(&"panel_tween")
 		previous.kill()
-	_set_panel_y(0.0, panel, resting)
+	_set_panel_y(0.0, panel, resting_top)
 	if not trigger.is_visible_in_tree():
 		return
 	var holder := panel.get_parent() as Control
 	var travel := maxf(48.0, holder.size.y - panel.position.y)
-	_set_panel_y(travel, panel, resting)
+	_set_panel_y(travel, panel, resting_top)
 	var tween := panel.create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS).set_ignore_time_scale(true)
 	panel.set_meta(&"panel_tween", tween)
-	tween.tween_method(_set_panel_y.bind(panel, resting), travel, 0.0, 0.20).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.tween_method(_set_panel_y.bind(panel, resting_top), travel, 0.0, 0.20).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
 
-static func _set_panel_y(shift: float, panel: Control, resting: Vector2) -> void:
-	panel.offset_top = resting.x + shift
-	panel.offset_bottom = resting.y + shift
+static func _set_panel_y(shift: float, panel: Control, resting_top: float) -> void:
+	var holder := panel.get_parent() as Control
+	# 整块平移，分两次写锚点偏移会触发 Control 的最小尺寸限制。
+	panel.position.y = holder.size.y * panel.anchor_top + resting_top + shift
 
 
 static func shake_offset(progress: float, amplitude: float) -> Vector2:

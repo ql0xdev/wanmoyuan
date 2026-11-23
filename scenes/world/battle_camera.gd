@@ -35,7 +35,7 @@ func shake_view() -> void:
 
 
 func _apply_view_shake(progress: float) -> void:
-	var offset := Look.shake_offset(progress, 12.0)
+	var offset := Look.shake_offset(progress, 24.0)
 	presentation.h_offset = offset.x
 	presentation.v_offset = _view_offset + offset.y
 

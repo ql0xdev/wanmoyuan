@@ -7,7 +7,7 @@ const FLASH_MATERIAL := preload("res://scenes/world/flash_material.tres")
 signal died(enemy: CharacterBody3D)
 signal death_finished(enemy: CharacterBody3D)
 signal health_changed(current: int)
-signal damaged(at: Vector3, amount: int)
+signal damaged(at: Vector3, amount: int, critical: bool)
 signal death_burst(at: Vector3, radius: float, tint: Color)
 
 const PLAYER_LAYER := 1
@@ -103,12 +103,12 @@ func _update_attack(_delta: float) -> void:
 	pass
 
 
-func take_damage(amount: int) -> void:
+func take_damage(amount: int, critical := false) -> void:
 	if _health <= 0 or amount <= 0:
 		return
 	_health = maxi(0, _health - amount)
 	health_changed.emit(_health)
-	damaged.emit(_body.global_position + Vector3.UP * (body_radius + 5.0), amount)
+	damaged.emit(_body.global_position + Vector3.UP * (body_radius + 5.0), amount, critical)
 	if _health > 0:
 		return
 

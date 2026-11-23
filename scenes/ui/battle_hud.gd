@@ -14,9 +14,13 @@ extends Control
 @onready var _boss_label: Label = $BossHealth/Caption/Value
 @onready var _boss_title: Label = $BossHealth/Caption/BossName
 @onready var _boss_notice: PanelContainer = $BossNotice
+@onready var _victory_loot_panel: PanelContainer = $VictoryLoot
+@onready var _victory_loot_label: Label = $VictoryLoot/Margin/Content/Heading/Seconds
 @onready var _loot_notice: Label = $LootNotice
 
 var _loot_tween: Tween
+var _boss_notice_tween: Tween
+var _shown_victory_loot_seconds := -1
 
 
 func set_progress(level: int, abyss: String, realm: String, xp: int, required: int) -> void:
@@ -45,16 +49,40 @@ func show_boss(boss_name: String, maximum: int) -> void:
 	_boss_bar.max_value = maximum
 	set_boss_health(maximum)
 	_boss_bar.show()
-	_boss_notice.modulate.a = 1.0
+	if _boss_notice_tween != null:
+		_boss_notice_tween.kill()
+	_boss_notice.pivot_offset = _boss_notice.size * 0.5
+	_boss_notice.scale = Vector2.ONE * 0.92
+	_boss_notice.modulate.a = 0.35
 	_boss_notice.show()
-	var tween := create_tween()
-	tween.tween_property(_boss_notice, "modulate:a", 0.0, 0.35).set_delay(1.6)
-	tween.tween_callback(_boss_notice.hide)
+	_boss_notice_tween = create_tween().set_parallel()
+	_boss_notice_tween.tween_property(_boss_notice, "scale", Vector2.ONE, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_boss_notice_tween.tween_property(_boss_notice, "modulate:a", 1.0, 0.16)
+	_boss_notice_tween.chain().tween_property(_boss_notice, "modulate:a", 0.0, 0.42).set_delay(2.2)
+	_boss_notice_tween.chain().tween_callback(_boss_notice.hide)
 
 
 func set_boss_health(current: int) -> void:
 	_boss_bar.value = current
 	_boss_label.text = "%d / %d" % [current, int(_boss_bar.max_value)]
+
+
+func show_victory_loot(seconds: int) -> void:
+	_boss_bar.hide()
+	if _boss_notice_tween != null:
+		_boss_notice_tween.kill()
+	_boss_notice.hide()
+	menu_button.hide()
+	shop_button.hide()
+	bag_button.hide()
+	set_victory_loot_seconds(seconds)
+	_victory_loot_panel.show()
+
+
+func set_victory_loot_seconds(seconds: int) -> void:
+	if seconds != _shown_victory_loot_seconds:
+		_shown_victory_loot_seconds = seconds
+		_victory_loot_label.text = "%d 秒" % seconds
 
 
 func show_loot(message: String, color: Color) -> void:

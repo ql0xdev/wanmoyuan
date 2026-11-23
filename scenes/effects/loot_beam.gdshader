@@ -1,6 +1,7 @@
 shader_type spatial;
 render_mode unshaded, blend_mix, depth_draw_never;
 
+uniform vec4 tint : source_color = vec4(1.0);
 varying float height;
 
 void vertex() {
@@ -8,6 +9,6 @@ void vertex() {
 }
 
 void fragment() {
-	ALBEDO = COLOR.rgb;
-	ALPHA = COLOR.a * (1.0 - smoothstep(0.05, 1.0, height));
+	ALBEDO = tint.rgb;
+	ALPHA = 0.88 * (1.0 - smoothstep(0.10, 1.0, height));
 }

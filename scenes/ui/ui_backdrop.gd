@@ -3,6 +3,10 @@ extends Control
 const Look = preload("res://scenes/ui/ui_look.gd")
 
 @export var emblem := false
+var ornament_offset := Vector2.ZERO:
+	set(value):
+		ornament_offset = value
+		queue_redraw()
 
 
 func _ready() -> void:
@@ -11,6 +15,7 @@ func _ready() -> void:
 
 func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Look.BACKGROUND)
+	draw_set_transform(ornament_offset)
 	var center := Vector2(size.x * 0.5, size.y * (0.39 if emblem else 0.14))
 	var radius := minf(size.x * 0.42, 320.0)
 	var gold := Color(Look.GOLD, 0.25 if emblem else 0.10)

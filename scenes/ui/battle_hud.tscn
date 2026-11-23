@@ -37,33 +37,38 @@ corner_radius_bottom_left = 16
 corner_radius_bottom_right = 16
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_boss"]
-bg_color = Color(0.55, 0.14, 0.19, 1)
-corner_radius_top_left = 22
-corner_radius_top_right = 22
-corner_radius_bottom_left = 22
-corner_radius_bottom_right = 22
+bg_color = Color(0.62, 0.13, 0.2, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.91, 0.56, 0.39, 1)
+corner_radius_top_left = 36
+corner_radius_top_right = 36
+corner_radius_bottom_left = 36
+corner_radius_bottom_right = 36
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_boss_empty"]
-bg_color = Color(0.129412, 0.149020, 0.176471, 1)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
+bg_color = Color(0.105, 0.07, 0.10, 0.98)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
 border_color = Color(0.941176, 0.776471, 0.454902, 0.78)
-corner_radius_top_left = 22
-corner_radius_top_right = 22
-corner_radius_bottom_left = 22
-corner_radius_bottom_right = 22
+corner_radius_top_left = 36
+corner_radius_top_right = 36
+corner_radius_bottom_left = 36
+corner_radius_bottom_right = 36
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_boss_banner"]
-bg_color = Color(0.050980, 0.066667, 0.090196, 0.93)
+bg_color = Color(0.11, 0.035, 0.065, 0.96)
 content_margin_left = 16.0
 content_margin_top = 16.0
 content_margin_right = 16.0
 content_margin_bottom = 16.0
-border_width_top = 1
-border_width_bottom = 1
-border_color = Color(0.898039, 0.325490, 0.294118, 0.80)
+border_width_top = 2
+border_width_bottom = 2
+border_color = Color(0.92, 0.40, 0.31, 0.94)
 
 [node name="BattleHUD" type="Control"]
 layout_mode = 3
@@ -222,12 +227,13 @@ text = "行囊"
 
 [node name="BossHealth" type="ProgressBar" parent="."]
 visible = false
+custom_minimum_size = Vector2(0, 72)
 layout_mode = 1
 anchor_right = 1.0
 offset_left = 8.0
 offset_top = 204.0
 offset_right = -8.0
-offset_bottom = 249.0
+offset_bottom = 276.0
 mouse_filter = 2
 theme_override_styles/background = SubResource("StyleBoxFlat_boss_empty")
 theme_override_styles/fill = SubResource("StyleBoxFlat_boss")
@@ -240,18 +246,22 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 mouse_filter = 2
 alignment = 1
-theme_override_constants/separation = 16
+theme_override_constants/separation = 22
 
 [node name="BossName" type="Label" parent="BossHealth/Caption"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.941176, 0.776471, 0.454902, 1)
-theme_override_font_sizes/font_size = 27
+theme_override_colors/font_outline_color = Color(0.12, 0.045, 0.055, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 34
 vertical_alignment = 1
 
 [node name="Value" type="Label" parent="BossHealth/Caption"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.337255, 0.831373, 0.866667, 1)
-theme_override_font_sizes/font_size = 22
+theme_override_colors/font_outline_color = Color(0.12, 0.045, 0.055, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 28
 vertical_alignment = 1
 
 [node name="BossNotice" type="PanelContainer" parent="."]
@@ -259,21 +269,68 @@ visible = false
 layout_mode = 1
 anchor_right = 1.0
 offset_left = 18.0
-offset_top = 268.0
+offset_top = 292.0
 offset_right = -18.0
-offset_bottom = 350.0
+offset_bottom = 418.0
 mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_boss_banner")
 
 [node name="Title" type="Label" parent="BossNotice"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.941176, 0.776471, 0.454902, 1)
-theme_override_colors/font_outline_color = Color(0.77, 0.19, 0.21, 1)
-theme_override_constants/outline_size = 6
-theme_override_font_sizes/font_size = 52
+theme_override_colors/font_outline_color = Color(0.66, 0.16, 0.19, 1)
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/font_size = 70
 text = "魔尊现世"
 horizontal_alignment = 1
 vertical_alignment = 1
+
+[node name="VictoryLoot" type="PanelContainer" parent="."]
+visible = false
+layout_mode = 1
+anchor_right = 1.0
+offset_left = 18.0
+offset_top = 204.0
+offset_right = -18.0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_top")
+
+[node name="Margin" type="MarginContainer" parent="VictoryLoot"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="Content" type="VBoxContainer" parent="VictoryLoot/Margin"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="Heading" type="HBoxContainer" parent="VictoryLoot/Margin/Content"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="Title" type="Label" parent="VictoryLoot/Margin/Content/Heading"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.941176, 0.776471, 0.454902, 1)
+theme_override_font_sizes/font_size = 36
+text = "离场倒计时"
+
+[node name="Seconds" type="Label" parent="VictoryLoot/Margin/Content/Heading"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.337255, 0.831373, 0.866667, 1)
+theme_override_font_sizes/font_size = 36
+
+[node name="Hint" type="Label" parent="VictoryLoot/Margin/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.545098, 0.580392, 0.619608, 1)
+theme_override_font_sizes/font_size = 22
+text = "拾取装备和灵石，时间到后自动结算。"
+horizontal_alignment = 1
 
 [node name="LootNotice" type="Label" parent="."]
 visible = false

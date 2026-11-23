@@ -6,6 +6,7 @@ const StatsManager = preload("res://scripts/stats_manager.gd")
 const GearMenu = preload("res://scenes/ui/equipment_menu.gd")
 const GameMenu = preload("res://scenes/ui/game_menu.gd")
 const Look = preload("res://scenes/ui/ui_look.gd")
+const Backdrop = preload("res://scenes/ui/ui_backdrop.gd")
 const STAT_LABELS := ["气血上限", "攻击倍率", "移速", "拾取范围", "冷却缩减", "受伤减免", "灵石掉落倍率", "击杀回血"]
 
 @onready var _title: Label = $SafeArea/Margin/Content/Header/Title
@@ -29,6 +30,7 @@ const STAT_LABELS := ["气血上限", "攻击倍率", "移速", "拾取范围", 
 @onready var _notice: Label = $BreakthroughNotice
 @onready var _game_menu: GameMenu = $SafeArea/GameMenu
 @onready var _cave_layout: Control = $SafeArea/Margin
+@onready var _backdrop: Backdrop = $Background
 
 var _points: Label
 var _skill_nodes := {}
@@ -139,24 +141,25 @@ func _break_through() -> void:
 	_show_status("")
 	if _flash_tween != null:
 		_flash_tween.kill()
-	_flash.modulate.a = 1.0
+	_flash.modulate.a = 0.88
 	_notice.modulate.a = 1.0
 	_notice.text = "突破·%s" % SaveManager.realm_name()
 	_flash.show()
 	_notice.show()
+	_notice.pivot_offset = _notice.size * 0.5
+	_notice.scale = Vector2.ONE * 0.85
 	_flash_tween = create_tween().set_parallel()
-	_flash_tween.tween_property(_flash, "modulate:a", 0.0, 0.55)
+	_flash_tween.tween_property(_flash, "modulate:a", 0.0, 0.52).set_delay(0.08).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_flash_tween.tween_property(_notice, "scale", Vector2.ONE, 0.20).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	_flash_tween.tween_method(_shake_breakthrough, 0.0, 1.0, 0.30)
 	_flash_tween.tween_property(_notice, "modulate:a", 0.0, 0.35).set_delay(1.50)
 	_flash_tween.chain().tween_callback(_hide_flash)
 
 
 func _shake_breakthrough(progress: float) -> void:
-	var offset := Look.shake_offset(progress, 8.0)
-	_cave_layout.offset_left = offset.x
-	_cave_layout.offset_right = offset.x
-	_cave_layout.offset_top = offset.y
-	_cave_layout.offset_bottom = offset.y
+	var offset := Look.shake_offset(progress, 18.0)
+	_cave_layout.position = offset
+	_backdrop.ornament_offset = _cave_layout.position
 
 
 func _hide_flash() -> void:

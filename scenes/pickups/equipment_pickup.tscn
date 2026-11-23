@@ -1,0 +1,28 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scenes/pickups/equipment_pickup.gd" id="1_pickup"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_marker"]
+size = Vector3(20, 10, 20)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_glow"]
+top_radius = 7.0
+bottom_radius = 13.0
+height = 84.0
+radial_segments = 12
+rings = 0
+
+[node name="EquipmentPickup" type="Node3D"]
+script = ExtResource("1_pickup")
+
+[node name="Marker" type="MeshInstance3D" parent="."]
+position = Vector3(0, 8, 0)
+rotation = Vector3(0, 0.7853982, 0)
+cast_shadow = 0
+mesh = SubResource("BoxMesh_marker")
+
+[node name="Glow" type="MeshInstance3D" parent="."]
+visible = false
+position = Vector3(0, 43, 0)
+cast_shadow = 0
+mesh = SubResource("CylinderMesh_glow")
