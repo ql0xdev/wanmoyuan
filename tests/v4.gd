@@ -139,7 +139,8 @@ func _test_campaign() -> void:
 	await _test_layer("source", false, "12-五层天相", "13-五层化神装")
 	cave = await _open_cave()
 	await _breakthrough(cave, "tribulation", 100000, 4.0, "09-突破渡劫")
-	_expect(_save.skill_points() == 15 and cave._breakthrough.disabled and "渡劫" in cave._breakthrough.text, "渡劫到顶，五次共 15 点")
+	_expect(_save.skill_points() == 15 and _save.realm() == "tribulation" and _save.realm_layer() == 1
+		and _save.breakthrough() == ERR_UNAVAILABLE, "渡劫不再有大突破，五次共 15 点")
 	await _test_layer("source", false, "", "14-五层额外渡劫装")
 	var loaded := ConfigFile.new()
 	_expect(loaded.load(SAVE_PATH) == OK and loaded.get_value("save", "save_version", 0) == 7, "存档 schema 为 7")
@@ -174,7 +175,7 @@ func _breakthrough(cave: Node, realm: String, cost: int, power: float, shot := "
 	_expect(_save.realm() == realm and _save.spirit_stones() == 0 and _save.skill_points() == old_points + 3, realm + " 实际洞府按钮突破与扣费")
 	_expect(cave._stat_values[0].text == str(roundi(100 * power)) and cave._stat_values[1].text == "×%.2f" % power
 		and cave._stat_values[2].text == "220", realm + " 气血、攻击与移速面板")
-	_expect(cave._flash.visible and cave._notice.text == "突破·" + _save.realm_name(), realm + " 金光与大字")
+	_expect(cave._flash.visible and cave._notice.text == "突破·" + Catalog.REALMS[realm].name, realm + " 金光与大字")
 	if not shot.is_empty() and not _output.is_empty():
 		await create_timer(0.20).timeout
 		await _capture(shot)
