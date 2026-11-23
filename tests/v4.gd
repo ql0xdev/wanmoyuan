@@ -29,13 +29,13 @@ func _run() -> void:
 		return
 	var mode: String = args[0] if not args.is_empty() else ""
 	var rendering := DisplayServer.get_name() != "headless"
-	if mode in ["capture", "legacy", "stress"] and args.size() == 2 and rendering:
+	if mode in ["capture", "legacy", "stress", "loadout"] and args.size() == 2 and rendering:
 		_output = args[1]
 		if DirAccess.make_dir_recursive_absolute(_output) != OK:
 			quit(1)
 			return
 	elif mode not in ["full", "legacy"] and not (mode == "stress" and rendering):
-		printerr("用法：-- full | legacy | capture <输出目录> | stress")
+		printerr("用法：-- full | legacy | capture <输出目录> | stress | loadout <输出目录>")
 		quit(1)
 		return
 	create_timer(95.0, true, false, true).timeout.connect(func() -> void:
@@ -45,6 +45,11 @@ func _run() -> void:
 	match mode:
 		"legacy": await _test_legacy()
 		"stress": await _test_stress()
+		"loadout":
+			_expect(_save.settle_run(140500, false) == OK, "配装截图测试资金")
+			for i in range(5):
+				_expect(_save.breakthrough() == OK, "配装截图解锁")
+			await _test_loadout_hints("选功法-条件已满足", "选功法-还缺搭档")
 		_:
 			_test_spawn_rules()
 			await _test_campaign()
@@ -283,7 +288,7 @@ func _test_boss_stages(battle: Node, boss: DemonLord) -> void:
 	await _capture("06-四阶段弹幕")
 
 
-func _test_evolutions() -> void:
+func _test_loadout_hints(matched := "15-配装金色提示", missing := "") -> void:
 	for id: String in ["sword_storm", "fire", "dash", "wisp", "bell", "shield"]:
 		_expect(_save.learn_skill(id) == OK, "正式领悟 " + id)
 	for i in range(3):
@@ -291,14 +296,31 @@ func _test_evolutions() -> void:
 	var cave := await _open_cave()
 	cave._loadout = ["sword", "sword_storm", "wisp"]
 	cave._show_preparation()
-	_expect("可进化" in cave._loadout_buttons.sword.text and "可进化" in cave._loadout_buttons.sword_storm.text
-		and "可进化" in cave._loadout_buttons.wisp.text, "组合与满级心法提示")
+	var buttons: Dictionary = cave._loadout_buttons
+	_expect("局内升到 3 级" in buttons.sword.text and "金卡进化为「万剑归宗」" in buttons.sword.text
+		and "搭档「万剑诀」已携带" in buttons.sword.text
+		and buttons.sword.get_theme_stylebox("pressed") == cave._evolution_card, "明确说明御剑术在局内如何进化")
+	_expect("御剑术的进化搭档 · 携带即可，无需升级" in buttons.sword_storm.text
+		and "选金卡" not in buttons.sword_storm.text, "搭档不误标为进化主体")
+	_expect("九幽焚天" in buttons.wisp.text and "「凝神诀」已满级" in buttons.wisp.text, "满级心法标出姓名和进化结果")
 	await process_frame
-	cave._preparation.scroll_vertical = 400
-	await _capture("15-配装金色提示")
+	cave._preparation.scroll_vertical = 410
+	await _capture(matched)
 	cave._toggle_skill("sword_storm")
-	_expect("可进化" not in cave._loadout_buttons.sword.text, "取消搭档立即清除提示")
+	_expect("进化需同时携带「万剑诀」" in buttons.sword.text and "选金卡" not in buttons.sword.text
+		and not buttons.sword.has_theme_stylebox_override("pressed")
+		and "搭档" not in buttons.sword_storm.text, "取消搭档后去掉金边并指出所缺条件")
+	await _capture(missing)
+	_expect("进化需在洞府点满「锻体诀」" in cave._evolution_requirement(Catalog.EVOLUTIONS.orbs, false, []), "指出缺少的局外心法")
+	cave._loadout = ["bell", "shield", "heal"]
+	cave._refresh_preparation()
+	_expect("玄武降世" in buttons.shield.text and "回春功" in buttons.shield.text
+		and "摄魂铃的进化搭档" in buttons.shield.text, "同一张卡能同时说明进化主体与搭档两个身份")
+	_expect("生生不息" in buttons.heal.text and "任意一门心法已满级" in buttons.heal.text, "任一满级心法的条件读得懂")
 
+
+func _test_evolutions() -> void:
+	await _test_loadout_hints()
 	# 正式总点数不足以点满所有心法，这里按进化路线分别用测试夹具提供搭档，
 	# 而非放宽正式存档、领悟成本或装备上限。
 	var valid_passives := {"body": 5, "spirit": 5, "wind": 3, "focus": 3}

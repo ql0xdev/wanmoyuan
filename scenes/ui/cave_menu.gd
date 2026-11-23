@@ -300,6 +300,8 @@ func _build_preparation() -> void:
 		button.pressed.connect(_choose_abyss.bind(abyss))
 		_abyss_buttons[abyss] = button
 	_add_label(_prep_options, "携带功法 · 最多四个，至少一个攻击功法", 24)
+	var guide := _add_label(_prep_options, "怎么进化？配好搭档或点满所需心法。进战斗把要进化的功法升到 3 级，之后升级时选择金卡。", 23)
+	guide.modulate = Look.MUTED
 	_skill_options = VBoxContainer.new()
 	_skill_options.add_theme_constant_override("separation", 8)
 	_prep_options.add_child(_skill_options)
@@ -337,7 +339,7 @@ func _rebuild_loadout() -> void:
 		var node: Dictionary = Catalog.SKILL_DATA[id]
 		var button := _add_button(_skill_options, 54)
 		button.toggle_mode = true
-		button.text = "%s　·　%s" % [node.name, "攻击" if node.attack else "辅助"]
+		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		button.tooltip_text = node.detail
 		button.pressed.connect(_toggle_skill.bind(id))
 		_loadout_buttons[id] = button
@@ -365,22 +367,35 @@ func _refresh_preparation() -> void:
 		button.set_pressed_no_signal(id == _selected_abyss)
 		var context := "需突破%s" % Catalog.REALMS[abyss.realm].name if button.disabled else ("已通关" if SaveManager.has_cleared(id) else "可进入")
 		button.text = "%s　·　%d 秒　·　%s" % [abyss.name, abyss.duration, context]
-	var hints := {}
 	var passives := SaveManager.passive_levels()
+	var ready := {}
+	var partners := {}
 	for id: String in _loadout:
 		if Catalog.evolution_matches(id, _loadout, passives):
 			var evolution: Dictionary = Catalog.EVOLUTIONS[id]
-			hints[id] = true
+			ready[id] = true
 			if evolution.has("partner"):
-				hints[evolution.partner] = true
+				var names: PackedStringArray = partners.get(evolution.partner, PackedStringArray())
+				names.append(Catalog.SKILL_DATA[id].name)
+				partners[evolution.partner] = names
+	var learned := SaveManager.learned_skills()
 	for id: String in _loadout_buttons:
 		var button: Button = _loadout_buttons[id]
 		var selected := _loadout.has(id)
 		button.set_pressed_no_signal(selected)
 		button.disabled = not selected and _loadout.size() >= Catalog.MAX_LOADOUT
 		var data: Dictionary = Catalog.SKILL_DATA[id]
-		button.text = "%s　·　%s%s" % [data.name, "攻击" if data.attack else "辅助", "　·　可进化" if hints.has(id) else ""]
-		if hints.has(id):
+		var lines := PackedStringArray(["%s　·　%s" % [data.name, "攻击" if data.attack else "辅助"]])
+		if selected and Catalog.EVOLUTIONS.has(id):
+			var rule: Dictionary = Catalog.EVOLUTIONS[id]
+			if ready.has(id):
+				lines.append("局内升到 3 级，选金卡进化为「%s」" % rule.name)
+			lines.append(_evolution_requirement(rule, ready.has(id), learned))
+		if partners.has(id):
+			lines.append("%s的进化搭档 · 携带即可，无需升级" % "、".join(partners[id]))
+		button.text = "\n".join(lines)
+		button.custom_minimum_size.y = 54.0 + 32.0 * (lines.size() - 1)
+		if ready.has(id) or partners.has(id):
 			button.add_theme_stylebox_override("pressed", _evolution_card)
 			button.add_theme_stylebox_override("hover_pressed", _evolution_hover)
 			button.add_theme_color_override("font_pressed_color", Look.GOLD)
@@ -393,6 +408,18 @@ func _refresh_preparation() -> void:
 	_prep_info.text = "已选 %d/%d · %s" % [_loadout.size(), Catalog.MAX_LOADOUT, label]
 	_enter.disabled = not SaveManager.valid_loadout(_loadout)
 	_enter.text = "开战 · %s" % Catalog.ABYSSES[_selected_abyss].name
+
+
+func _evolution_requirement(rule: Dictionary, met: bool, learned: Array) -> String:
+	if rule.has("partner"):
+		var name: String = Catalog.SKILL_DATA[rule.partner].name
+		if met:
+			return "搭档「%s」已携带" % name
+		if not learned.has(rule.partner):
+			return "进化需携带「%s」 · 可在功法页领悟" % name
+		return "进化需同时携带「%s」" % name
+	var passive := "任意一门心法" if rule.passive == "any" else "「%s」" % Catalog.PASSIVES[rule.passive].name
+	return "%s已满级" % passive if met else "进化需在洞府点满%s" % passive
 
 
 func _enter_battle() -> void:
