@@ -171,9 +171,9 @@ func _equipment() -> void:
 		_check(cave._character._stats[i].text == stats.panel_values()[i], "角色属性源与 StatsManager 相同")
 	await _shot("验收04-角色七部位穿戴")
 	await process_frame
-	cave._character.scroll_vertical = int(cave._character.get_v_scroll_bar().max_value)
+	cave._character._sidebar.scroll_vertical = int(cave._character._sidebar.get_v_scroll_bar().max_value)
 	await _shot("验收06-角色已领悟和最终属性")
-	cave._character.scroll_vertical = 0
+	cave._character._sidebar.scroll_vertical = 0
 	cave._character._compare.button_pressed = true
 	await process_frame
 	cave._character._slots.hat.pressed.emit()

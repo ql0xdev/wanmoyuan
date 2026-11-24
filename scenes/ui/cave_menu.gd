@@ -6,6 +6,7 @@ const BATTLE_SCENE := "res://scenes/main.tscn"
 const Catalog = preload("res://scripts/cultivation_catalog.gd")
 const StatsManager = preload("res://scripts/stats_manager.gd")
 const GearMenu = preload("res://scenes/ui/equipment_menu.gd")
+const GearTip = preload("res://scenes/ui/equipment_tooltip.gd")
 const Forge = preload("res://scripts/forge_catalog.gd")
 const ForgeMenu = preload("res://scenes/ui/forge_menu.gd")
 const SacrificePicker = preload("res://scenes/ui/forge_sacrifice.gd")
@@ -55,7 +56,7 @@ var _flash_tween: Tween
 var _forge_menu: ForgeMenu
 var _picker: SacrificePicker
 var _forge_flash: ForgeFlash
-var _star_grid: GearMenu
+var _star_tip: GearTip
 var _star_id := 0
 var _layer_tiles: Array[PanelContainer] = []
 var _layer_labels: Array[Label] = []
@@ -78,7 +79,10 @@ func _ready() -> void:
 	_character = CharacterPage.new()
 	_character.name = "角色"
 	_tabs.add_child(_character)
-	_character.attach($SafeArea)
+	_character.attach($SafeArea, _storage)
+	_character.wear_requested.connect(_wear_equipment.bind(_character._tip, _character.show_status))
+	_character.salvage_requested.connect(_salvage_equipment.bind(_storage, _character._tip, _character.show_status))
+	_character.star_requested.connect(_open_star.bind(_storage, _character._tip))
 	_shop = CaveShop.new()
 	_shop.name = "商店"
 	_tabs.add_child(_shop)
@@ -106,9 +110,9 @@ func _ready() -> void:
 
 func _connect_gear_grid(grid: GearMenu) -> void:
 	grid.attach_tooltip($SafeArea)
-	grid.wear_requested.connect(_wear_equipment.bind(grid))
-	grid.salvage_requested.connect(_salvage_equipment.bind(grid))
-	grid.star_requested.connect(_open_star.bind(grid))
+	grid.wear_requested.connect(_wear_equipment.bind(grid._popup, grid.show_status))
+	grid.salvage_requested.connect(_salvage_equipment.bind(grid, grid._popup, grid.show_status))
+	grid.star_requested.connect(_open_star.bind(grid, grid._popup))
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -425,26 +429,26 @@ func _train(id: String) -> void:
 	_refresh()
 
 
-func _wear_equipment(id: int, equip: bool, grid: GearMenu) -> void:
+func _wear_equipment(id: int, equip: bool, tip: GearTip, show_status: Callable) -> void:
 	if SaveManager.change_equipment(id, equip) != OK:
-		grid._popup.show_status("无法更换装备，存档未变更。")
+		tip.show_status("无法更换装备，存档未变更。")
 		return
 	_refresh()
-	grid.show_status("已穿戴并保存。" if equip else "已卸下并保存。")
+	show_status.call("已穿戴并保存。" if equip else "已卸下并保存。")
 
 
-func _salvage_equipment(id: int, grid: GearMenu) -> void:
+func _salvage_equipment(id: int, grid: GearMenu, tip: GearTip, show_status: Callable) -> void:
 	var item: Dictionary = grid._items.get(id, {})
 	if item.is_empty():
 		return
 	if SaveManager.salvage_equipment(id) != OK:
-		grid._popup.show_status("分解失败，存档未变更。")
+		tip.show_status("分解失败，存档未变更。")
 		return
 	_refresh()
-	grid.show_status("获得 " + Forge.salvage_text(item.quality))
+	show_status.call("获得 " + Forge.salvage_text(item.quality))
 
 
-func _open_star(id: int, grid: GearMenu) -> void:
+func _open_star(id: int, grid: GearMenu, tip: GearTip) -> void:
 	var item: Dictionary = grid._items.get(id, {})
 	if item.is_empty():
 		return
@@ -452,14 +456,14 @@ func _open_star(id: int, grid: GearMenu) -> void:
 	var cost := Forge.star_cost(item)
 	if not Forge.can_star(cost, SaveManager.iron(), candidates.size()):
 		return
-	_star_grid = grid
+	_star_tip = tip
 	_star_id = id
 	_picker.open(item, candidates, cost)
 
 
 func _confirm_star(ids: Array) -> void:
 	if SaveManager.star_equipment(_star_id, ids) != OK:
-		_star_grid._popup.show_status("升星失败，材料未扣除。")
+		_star_tip.show_status("升星失败，材料未扣除。")
 		return
 	_refresh()
 	_forge_flash.flash("升星成功")
