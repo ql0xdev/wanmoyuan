@@ -186,6 +186,11 @@ func _stations_and_panels() -> void:
 		if not panels.visible or panels._tabs.get_current_tab_control().name != names[i]:
 			_check(false, "点击物件或提示打开 " + names[i])
 			return
+		_check(not panels._tabs.get_tab_bar().is_visible_in_tree() and panels._title.text == names[i],
+			"只显示当前物件标题，不显示其他入口")
+		for tab in range(names.size()):
+			_check(panels._tabs.get_tab_control(tab).is_visible_in_tree() == (tab == i),
+				"%s入口仅显示%s对应内容" % [names[i], names[i]])
 		if i == Station.Kind.PILLAR:
 			await _tap(panels._guide_tab)
 			_check(panels._guide.visible and panels._guide._cards.size() == Catalog.EVOLUTIONS.size(), "组合图鉴内容")
@@ -198,15 +203,6 @@ func _stations_and_panels() -> void:
 			_check(panels._shop._offers.size() == _save.shop_items().size(), "商店显示原库存")
 		await _shot("验收04%s-%s面板" % [char(97 + i), names[i]])
 		if i == Station.Kind.MAT:
-			var bar: TabBar = panels._tabs.get_tab_bar()
-			for tab in [2, 4, 0]:
-				var tab_point := bar.get_global_transform_with_canvas() * bar.get_tab_rect(tab).get_center()
-				_mouse(tab_point, true)
-				_mouse(tab_point, false)
-				await process_frame
-				_check(panels._tabs.current_tab == tab, "页签互切 %d" % tab)
-				if tab == 4:
-					await _shot("验收05a-从修行切到角色页")
 			var at := player.position
 			_key(KEY_DOWN, true)
 			await _physics(8)
@@ -229,6 +225,8 @@ func _stations_and_panels() -> void:
 			await process_frame
 			_check(not panels.visible, "Esc 关闭面板回场景")
 		else:
+			if i == Station.Kind.CHEST:
+				await _shot("验收05a-宝箱只显示行囊")
 			await _tap(panels._close_button)
 	_check(not panels.visible and _cave._hud.visible, "关闭后场景 HUD 恢复")
 	await _tap(_cave._menu_button, 0)

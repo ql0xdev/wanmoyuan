@@ -99,6 +99,7 @@ func _ready() -> void:
 	Look.skin_buttons(self)
 	_refresh()
 	if scene_hosted:
+		_tabs.tabs_visible = false
 		_close_button.show()
 		_enter.hide()
 
@@ -122,6 +123,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 func open_tab(tab: int) -> void:
 	_hide_preparation()
 	_tabs.current_tab = tab
+	if scene_hosted:
+		_title.text = _tabs.get_tab_title(tab)
 	show()
 
 
