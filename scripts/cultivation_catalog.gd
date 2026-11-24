@@ -3,10 +3,10 @@ extends RefCounted
 const REALMS := {
 	"qi_refining": {"name": "炼气", "rank": 0, "next": "foundation", "cost": 0, "power": 1.0, "speed": 1.0},
 	"foundation": {"name": "筑基", "rank": 1, "next": "gold_core", "cost": 500, "power": 2.0, "speed": 1.1},
-	"gold_core": {"name": "金丹", "rank": 2, "next": "nascent_soul", "cost": 2000, "power": 2.5, "speed": 1.1},
-	"nascent_soul": {"name": "元婴", "rank": 3, "next": "spirit_transformation", "cost": 8000, "power": 3.0, "speed": 1.1},
-	"spirit_transformation": {"name": "化神", "rank": 4, "next": "tribulation", "cost": 30000, "power": 3.5, "speed": 1.1},
-	"tribulation": {"name": "渡劫", "rank": 5, "next": "", "cost": 100000, "power": 4.0, "speed": 1.1},
+	"gold_core": {"name": "金丹", "rank": 2, "next": "nascent_soul", "cost": 2000, "power": 4.0, "speed": 1.1},
+	"nascent_soul": {"name": "元婴", "rank": 3, "next": "spirit_transformation", "cost": 8000, "power": 8.0, "speed": 1.1},
+	"spirit_transformation": {"name": "化神", "rank": 4, "next": "tribulation", "cost": 30000, "power": 16.0, "speed": 1.1},
+	"tribulation": {"name": "渡劫", "rank": 5, "next": "", "cost": 100000, "power": 32.0, "speed": 1.1},
 }
 const BREAKTHROUGH_POINTS := 3
 const REALM_LAYER_CAP := 9

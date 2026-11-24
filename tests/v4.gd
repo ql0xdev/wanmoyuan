@@ -127,18 +127,18 @@ func _test_campaign() -> void:
 	await _breakthrough(cave, "foundation", 500, 2.0)
 	await _test_layer("middle")
 	cave = await _open_cave()
-	await _breakthrough(cave, "gold_core", 2000, 2.5)
+	await _breakthrough(cave, "gold_core", 2000, 4.0)
 	await _test_layer("inner")
 	cave = await _open_cave()
-	await _breakthrough(cave, "nascent_soul", 8000, 3.0, "07-突破元婴")
+	await _breakthrough(cave, "nascent_soul", 8000, 8.0, "07-突破元婴")
 	_expect(_save.is_unlocked("deep") and not _save.is_unlocked("source"), "元婴解锁四层")
 	await _test_layer("deep", false, "10-四层地相", "11-四层元婴装")
 	cave = await _open_cave()
-	await _breakthrough(cave, "spirit_transformation", 30000, 3.5, "08-突破化神")
+	await _breakthrough(cave, "spirit_transformation", 30000, 16.0, "08-突破化神")
 	_expect(_save.is_unlocked("source"), "化神解锁五层")
 	await _test_layer("source", false, "12-五层天相", "13-五层化神装")
 	cave = await _open_cave()
-	await _breakthrough(cave, "tribulation", 100000, 4.0, "09-突破渡劫")
+	await _breakthrough(cave, "tribulation", 100000, 32.0, "09-突破渡劫")
 	_expect(_save.skill_points() == 15 and _save.realm() == "tribulation" and _save.realm_layer() == 1
 		and _save.breakthrough() == ERR_UNAVAILABLE, "渡劫不再有大突破，五次共 15 点")
 	await _test_layer("source", false, "", "14-五层额外渡劫装")
@@ -158,7 +158,7 @@ func _test_campaign() -> void:
 	var overpower := await _battle("outer")
 	var wolf: Node = overpower._spawn_enemy(overpower._wolf_pool)
 	var sword: int = overpower._player.stats.damage(10)
-	_expect(sword == 40 and sword >= wolf.max_health and overpower._player.max_health == 400, "渡劫回外渊：一级御剑单发可杀满血妖狼，基础气血四倍")
+	_expect(sword == 320 and sword >= wolf.max_health and overpower._player.max_health == 3200, "渡劫回外渊：一级御剑单发可杀满血妖狼，基础气血 32 倍")
 
 
 func _breakthrough(cave: Node, realm: String, cost: int, power: float, shot := "") -> void:

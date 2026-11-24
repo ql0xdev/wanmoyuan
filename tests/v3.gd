@@ -88,13 +88,13 @@ func _test_catalogs() -> void:
 
 	var stats := Stats.new()
 	stats.configure("gold_core", {"body": 2, "spirit": 1, "wind": 1, "fortune": 1, "focus": 1}, {"weapon": WHITE_WEAPON})
-	_expect(stats.max_health() == 325 and stats.damage(100) == 323, "金丹与心法、装备属性按乘法合成")
+	_expect(stats.max_health() == 520 and stats.damage(100) == 517, "金丹与心法、装备属性按乘法合成")
 	_expect(is_equal_approx(stats.move_speed(), 228.8) and is_equal_approx(stats.cooldown_multiplier, 0.96)
 		and is_equal_approx(stats.stone_multiplier(), 1.10), "移速、聚宝诀、凝神诀生效")
 	stats.use_pill("rage")
 	stats.use_pill("guard")
 	stats.use_pill("fortune")
-	_expect(stats.damage(100) == 420 and stats.incoming_damage(100) == 80 and stats.stone_amount(100) == 165, "三种增益丹药叠乘")
+	_expect(stats.damage(100) == 672 and stats.incoming_damage(100) == 80 and stats.stone_amount(100) == 165, "三种增益丹药叠乘")
 
 
 func _test_play(save: Node) -> void:
