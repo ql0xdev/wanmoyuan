@@ -224,8 +224,8 @@ func _shop() -> void:
 	battle._show_result(false, true)
 	battle._return_to_cave()
 	await scene_changed
-	var cave := current_scene
-	cave._tabs.current_tab = 5
+	var cave: Node = current_scene._panels
+	cave.open_tab(5)
 	var stock: Array = _save.shop_items()
 	_check(stock.size() == 6 and cave._shop._offers.size() == 6, "实际返回洞府六件")
 	if stock.size() != 6:
@@ -255,8 +255,8 @@ func _shop() -> void:
 
 
 func _guide_and_battle() -> void:
-	var cave := current_scene
-	cave._tabs.current_tab = 1
+	var cave: Node = current_scene._panels
+	cave.open_tab(1)
 	cave._guide_tab.pressed.emit()
 	_check(cave._guide._cards.size() == 9 and not cave._guide._cards.sword.reached
 		and "万剑诀" in cave._guide._cards.sword.recipe.text, "图鉴初始公开未达成配方")

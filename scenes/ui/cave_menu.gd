@@ -1,5 +1,7 @@
 extends Control
 
+signal closed
+
 const BATTLE_SCENE := "res://scenes/main.tscn"
 const Catalog = preload("res://scripts/cultivation_catalog.gd")
 const StatsManager = preload("res://scripts/stats_manager.gd")
@@ -15,7 +17,10 @@ const CharacterPage = preload("res://scenes/ui/character_page.gd")
 const CaveShop = preload("res://scenes/ui/cave_shop.gd")
 const EvolutionGuide = preload("res://scenes/ui/evolution_guide.gd")
 
+@export var scene_hosted := false
+
 @onready var _title: Label = $SafeArea/Margin/Content/Header/Title
+@onready var _close_button: Button = $SafeArea/Margin/Content/Header/CloseButton
 @onready var _tabs: TabContainer = $SafeArea/Margin/Content/Tabs
 @onready var _realm: Label = $SafeArea/Margin/Content/Tabs/修行/Scroll/Details/Realm
 @onready var _stats: GridContainer = $SafeArea/Margin/Content/Tabs/修行/Scroll/Details/Stats
@@ -60,6 +65,7 @@ var _guide: EvolutionGuide
 var _practice: VBoxContainer
 var _practice_tab: Button
 var _guide_tab: Button
+var _menu_only := false
 
 
 func _ready() -> void:
@@ -92,6 +98,9 @@ func _ready() -> void:
 	_build_preparation()
 	Look.skin_buttons(self)
 	_refresh()
+	if scene_hosted:
+		_close_button.show()
+		_enter.hide()
 
 
 func _connect_gear_grid(grid: GearMenu) -> void:
@@ -102,9 +111,43 @@ func _connect_gear_grid(grid: GearMenu) -> void:
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel") and not event.is_echo():
+	if is_visible_in_tree() and event.is_action_pressed("ui_cancel") and not event.is_echo():
 		get_viewport().set_input_as_handled()
-		_open_game_menu()
+		if scene_hosted:
+			_close_panel()
+		else:
+			_open_game_menu()
+
+
+func open_tab(tab: int) -> void:
+	_hide_preparation()
+	_tabs.current_tab = tab
+	show()
+
+
+func open_portal() -> void:
+	_show_preparation()
+	show()
+
+
+func open_world_menu() -> void:
+	_menu_only = true
+	_backdrop.hide()
+	_cave_layout.hide()
+	show()
+	_open_game_menu()
+
+
+func _close_panel() -> void:
+	hide()
+	closed.emit()
+
+
+func _back_from_preparation() -> void:
+	if scene_hosted:
+		_close_panel()
+	else:
+		_hide_preparation()
 
 
 func _open_game_menu() -> void:
@@ -114,6 +157,11 @@ func _open_game_menu() -> void:
 
 func _resume_cave() -> void:
 	get_tree().paused = false
+	if _menu_only:
+		_menu_only = false
+		_close_panel()
+		_backdrop.show()
+		_cave_layout.show()
 
 
 func _refresh() -> void:
@@ -429,6 +477,7 @@ func _show_preparation() -> void:
 	_preparation.show()
 	_prep_info.show()
 	_back.show()
+	_enter.show()
 	_title.text = "秘境准备"
 	_preparation.scroll_vertical = 0
 	_refresh_preparation()
@@ -440,6 +489,7 @@ func _hide_preparation() -> void:
 	_preparation.hide()
 	_prep_info.hide()
 	_back.hide()
+	_enter.visible = not scene_hosted
 	_title.text = "洞府"
 	_enter.text = "进入秘境"
 	_enter.disabled = false

@@ -1,0 +1,113 @@
+[gd_scene load_steps=11 format=3]
+
+[ext_resource type="Script" path="res://scenes/cave/cave.gd" id="1_cave"]
+[ext_resource type="Script" path="res://scenes/cave/cave_map.gd" id="2_map"]
+[ext_resource type="Script" path="res://scenes/world/actor_art.gd" id="3_art"]
+[ext_resource type="Script" path="res://scenes/ui/virtual_joystick.gd" id="4_move"]
+[ext_resource type="Script" path="res://scenes/ui/safe_area.gd" id="5_safe"]
+[ext_resource type="PackedScene" path="res://scenes/ui/cave_menu.tscn" id="6_panel"]
+[ext_resource type="Theme" path="res://scenes/ui/menu_theme.tres" id="7_theme"]
+[ext_resource type="Shader" path="res://scenes/cave/cave_vignette.gdshader" id="8_shade"]
+
+[sub_resource type="CircleShape2D" id="CircleShape_player"]
+radius = 16.0
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_shade"]
+shader = ExtResource("8_shade")
+
+[node name="Cave" type="Node2D"]
+script = ExtResource("1_cave")
+
+[node name="Map" type="Node2D" parent="."]
+script = ExtResource("2_map")
+
+[node name="Actors" type="Node2D" parent="."]
+y_sort_enabled = true
+
+[node name="Player" type="CharacterBody2D" parent="Actors"]
+collision_layer = 0
+motion_mode = 1
+
+[node name="Collision" type="CollisionShape2D" parent="Actors/Player"]
+shape = SubResource("CircleShape_player")
+
+[node name="Art" type="Node2D" parent="Actors/Player"]
+script = ExtResource("3_art")
+kind = 0
+tint = Color(0.361, 0.914, 0.808, 1)
+
+[node name="Camera" type="Camera2D" parent="Actors/Player"]
+limit_left = 0
+limit_top = 0
+position_smoothing_enabled = true
+position_smoothing_speed = 8.0
+
+[node name="Overlay" type="CanvasLayer" parent="."]
+
+[node name="Vignette" type="ColorRect" parent="Overlay"]
+material = SubResource("ShaderMaterial_shade")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+
+[node name="Joystick" type="Control" parent="Overlay"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+script = ExtResource("4_move")
+
+[node name="SafeArea" type="Control" parent="Overlay"]
+mouse_filter = 2
+theme = ExtResource("7_theme")
+script = ExtResource("5_safe")
+
+[node name="Title" type="Label" parent="Overlay/SafeArea"]
+offset_left = 18.0
+offset_top = 16.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.941, 0.776, 0.455, 1)
+theme_override_colors/font_outline_color = Color(0.035, 0.047, 0.061, 1)
+theme_override_constants/outline_size = 10
+theme_override_font_sizes/font_size = 36
+text = "洞 府"
+
+[node name="Subtitle" type="Label" parent="Overlay/SafeArea"]
+offset_left = 20.0
+offset_top = 66.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.68, 0.81, 0.79, 1)
+theme_override_colors/font_outline_color = Color(0.035, 0.047, 0.061, 1)
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/font_size = 19
+text = "归元静境"
+
+[node name="MenuButton" type="Button" parent="Overlay/SafeArea"]
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -108.0
+offset_top = 14.0
+offset_right = -14.0
+offset_bottom = 68.0
+focus_mode = 0
+text = "菜单"
+
+[node name="Hint" type="Label" parent="Overlay/SafeArea"]
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -51.0
+offset_bottom = -8.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.68, 0.81, 0.79, 1)
+theme_override_colors/font_outline_color = Color(0.035, 0.047, 0.061, 1)
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/font_size = 20
+text = "方向键 / WASD 移动　·　靠近物件后点击"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="CaveMenu" parent="Overlay" instance=ExtResource("6_panel")]
+visible = false
+scene_hosted = true

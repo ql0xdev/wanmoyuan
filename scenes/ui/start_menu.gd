@@ -1,6 +1,6 @@
 extends Control
 
-const CAVE_SCENE := "res://scenes/ui/cave_menu.tscn"
+const CAVE_SCENE := "res://scenes/cave/cave.tscn"
 const Look = preload("res://scenes/ui/ui_look.gd")
 
 @onready var _start: Button = $Center/Content/Start
